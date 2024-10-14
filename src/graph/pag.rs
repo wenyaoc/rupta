@@ -61,7 +61,7 @@ pub trait PAGPath: Clone + PartialEq + Eq + Hash + Debug {
     fn get_containing_func(&self) -> Option<Self::FuncTy>;
 }
 
-#[derive(Debug)]
+
 pub struct PAGNode<P: PAGPath> {
     path: P,
 }
@@ -77,7 +77,7 @@ impl<P: PAGPath> PAGNode<P> {
     }
 
 }
-#[derive(Debug)]
+
 pub struct PAGEdge {
     pub kind: PAGEdgeEnum,
 }
@@ -105,8 +105,6 @@ pub enum PAGEdgeEnum {
 
 type EdgeMap = HashMap<PAGNodeId, BTreeSet<PAGEdgeId>>;
 
-
-#[derive(Debug)]
 pub struct PAG<P: PAGPath> {
     /// The graph structure capturing assignment relations between nodes.
     pub(crate) graph: Graph<PAGNode<P>, PAGEdge>,
@@ -489,7 +487,6 @@ impl<P: PAGPath> PAG<P> {
         // Build pag for this function.
         let mut fpag = FuncPAG::new(func_id);
         let mir = acx.tcx.optimized_mir(def_id);
-
         let mut builder = fpag_builder::FuncPAGBuilder::new(acx, func_id, mir, &mut fpag);
         builder.build();
 
@@ -561,50 +558,6 @@ impl<P: PAGPath> PAG<P> {
             Some(promoted_func_ids)
         }
     }
-
-    // label = "CastPAGEdge" -> color = "red";
-    // label = "AddrPAGEdge" -> color = "blue";
-    // label = "DirectPAGEdge" -> color = "green";
-
-    pub fn to_dot(&self, dot_path: &std::path::Path) {
-        use crate::util::dot::Dot;
-        let node_fmt = |node: &PAGNode<P>, f: &mut std::fmt::Formatter| -> std::fmt::Result {
-            write!(f, "{:?}", node.path())
-        };
-        let edge_fmt = |edge: &PAGEdge, f: &mut std::fmt::Formatter| -> std::fmt::Result {
-            write!(f, "{:?}", edge.kind)
-        };
-
-        let output = format!(
-            "{:?}",
-            Dot::with_graph_fmt(&self.graph, &[], &node_fmt, &edge_fmt)
-        );
-        match std::fs::write(dot_path, output) {
-            Ok(_) => (),
-            Err(e) => panic!("Failed to write dot file output: {:?}", e),
-        };
-    }
-
-
-    //     /// Produce a dot file representation of the call graph
-    // /// for displaying with Graphviz.
-    // pub fn to_dot(&self, acx: &AnalysisContext, dot_path: &std::path::Path) {
-    //     let node_fmt = |node: &CallGraphNode<F>, f: &mut fmt::Formatter| -> fmt::Result {
-    //         node.func.dot_fmt(acx, f)
-    //     };
-    //     let edge_fmt = |edge: &CallGraphEdge<S>, f: &mut fmt::Formatter| -> fmt::Result {
-    //         edge.callsite.dot_fmt(f)
-    //     };
-
-    //     let output = format!(
-    //         "{:?}",
-    //         Dot::with_graph_fmt(&self.graph, &[], &node_fmt, &edge_fmt)
-    //     );
-    //     match std::fs::write(dot_path, output) {
-    //         Ok(_) => (),
-    //         Err(e) => panic!("Failed to write dot file output: {:?}", e),
-    //     };
-    // }
 
 }
 
