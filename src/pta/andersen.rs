@@ -90,6 +90,10 @@ impl<'pta, 'tcx, 'compilation> AndersenPTA<'pta, 'tcx, 'compilation> {
 
         // process statements of reachable functions
         self.process_reach_funcs();
+
+        // println!("PAG after initialization: {:?}", self.pag);
+        let path = std::path::Path::new("/home/wenyao/stack-filtering/hello/pag_init.dot");
+        self.pag.to_dot(path);
     }
 
     /// Solve the worklist problem using Propagator.
@@ -141,7 +145,7 @@ impl<'pta, 'tcx, 'compilation> AndersenPTA<'pta, 'tcx, 'compilation> {
 
         let fpag = unsafe { &*(self.pag.func_pags.get(&func_id).unwrap() as *const FuncPAG) };
         let edges_iter = fpag.internal_edges_iter();
-        for (src, dst, kind) in edges_iter {
+        for (src, _, dst, _, kind) in edges_iter {
             if let Some(edge_id) = self.pag.add_edge(src, dst, kind.clone()) {
                 if src.is_promoted_constant() || src.is_static_variable() {
                     self.inter_proc_edges_queue.push(edge_id);
@@ -254,6 +258,10 @@ impl<'pta, 'tcx, 'compilation> PointerAnalysis<'tcx, 'compilation> for AndersenP
 
         // Solve the worklist problem.
         self.propagate();
+        
+
+        let path = std::path::Path::new("/home/wenyao/stack-filtering/hello/pag_final.dot");
+        self.pag.to_dot(path);
 
         let elapsed = now.elapsed();
         info!("Andersen completed.");

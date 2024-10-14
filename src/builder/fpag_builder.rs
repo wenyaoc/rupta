@@ -43,7 +43,7 @@ pub struct FuncPAGBuilder<'pta, 'tcx, 'compilation> {
     pub(crate) func_ref: Rc<FunctionReference<'tcx>>,
     pub(crate) mir: &'tcx mir::Body<'tcx>,
     /// Pointer Assignment Graph for this function.
-    pub(crate) fpag: &'pta mut FuncPAG,
+    pub(crate) fpag: &'pta mut FuncPAG<'pta>,
 
     /// For specializing the generic type in the function.
     substs_specializer: SubstsSpecializer<'tcx>,
@@ -142,6 +142,8 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
             self.acx.set_path_rustc_type(static_variable.clone(), ret_type);
             self.add_internal_edges(ret_path, ret_type, static_variable, ret_type);
         }
+
+        // println!("FuncPAG for {:?}: self.fpag: {:?}", self.func_id, self.fpag);
     }
 
     pub fn visit_body(&mut self) {
@@ -756,18 +758,22 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
             | mir::CastKind::PointerCoercion(PointerCoercion::UnsafeFnPointer) => {
                 // These kinds of pointer casts do not re-interpret the bits of the input as a 
                 // different type. We simply treat them as direct assignments.
-                let rh_path = match operand {
+                match operand {
                     mir::Operand::Move(place) | mir::Operand::Copy(place) => {
-                        self.get_path_for_place(place)
+                        let rh_path = self.get_path_for_place(place);
+                        self.add_direct_edge(rh_path, lh_path);
                     }
                     mir::Operand::Constant(box const_op) => {
                         debug!("
                             DynStar/MutToConstPointer/UnsafeFnPointer cast from a const operand!"
                         );
-                        self.visit_const_operand(const_op)
+                        let mir::ConstOperand { const_, .. } = const_op;
+                        let rh_path = self.visit_const_operand(const_op);
+                        self.add_const_assign_edge(lh_path, rh_path);
                     }
                 };
-                self.add_direct_edge(rh_path, lh_path);
+                // println!("4");
+                // self.add_direct_edge(rh_path, lh_path);
             }
             // Go from a fn-item type to a fn-pointer type.
             // For example: ``` p = foo as fn(i32) -> i32 (Pointer(ReifyFnPointer)); ```
@@ -1324,6 +1330,7 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
         dst_path: Rc<Path>,
         dst_type: Ty<'tcx>,
     ) {
+        println!("add_internal_edges: {:?}({:?}) -> {:?}({:?})", src_path, src_type, dst_path, dst_type);
         if type_util::equal_types(self.tcx(), src_type, dst_type) {
             if src_type.is_any_ptr() {
                 self.add_edge_between_ptrs(src_path, dst_path);
@@ -1816,7 +1823,10 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
 
     /// Adds an internal edge from `src` to `dst` of `kind` to the function pag.
     pub fn add_edge(&mut self, src: Rc<Path>, dst: Rc<Path>, kind: PAGEdgeEnum) {
-        self.fpag.add_internal_edge(src, dst, kind);
+
+        let src_ty = self.acx.get_path_rustc_type(&src).unwrap();
+        let dst_ty = self.acx.get_path_rustc_type(&dst).unwrap();
+        self.fpag.add_internal_edge(src, src_ty, dst, dst_ty, kind);
     }
     
     /// Creates a new callsite.

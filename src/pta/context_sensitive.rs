@@ -117,6 +117,10 @@ impl<'pta, 'tcx, 'compilation, S: ContextStrategy> ContextSensitivePTA<'pta, 'tc
 
         // process statements of reachable functions
         self.process_reach_funcs();
+
+        println!("PAG after initialization: {:?}", self.pag);
+        let path = std::path::Path::new("/home/wenyao/stack-filtering/hello/pag.dot");
+        self.pag.to_dot(path);
     }
 
     /// Solve the worklist problem using Propagator.
@@ -176,7 +180,7 @@ impl<'pta, 'tcx, 'compilation, S: ContextStrategy> ContextSensitivePTA<'pta, 'tc
 
         let fpag = unsafe { &*(self.pag.func_pags.get(&func.func_id).unwrap() as *const FuncPAG) };
         let edges_iter = fpag.internal_edges_iter();
-        for (src, dst, kind) in edges_iter {
+        for (src, _, dst, _, kind) in edges_iter {
             let cs_src = self.mk_cs_path(src, func.cid);
             let cs_dst = self.mk_cs_path(dst, func.cid);
             if let Some(edge_id) = self.pag.add_edge(&cs_src, &cs_dst, kind.clone()) {
