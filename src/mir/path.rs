@@ -491,6 +491,14 @@ impl Path {
     pub fn is_static_variable(&self) -> bool {
         matches!(self.value, PathEnum::StaticVariable{..})
     }
+
+    pub fn get_base_path(&self) -> Rc<Path> { 
+        //TODO: HANDLE ALL TYPES OF PATHS
+        match &self.value {
+            PathEnum::QualifiedPath { base, .. } => base.get_base_path(),
+            _ => Rc::from(self.clone()),
+        }
+    }
 }
 
 
@@ -538,6 +546,7 @@ impl PathSupport for Rc<Path> {
             _ => false,
         }
     }
+    
 }
 
 

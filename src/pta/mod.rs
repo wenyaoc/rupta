@@ -51,7 +51,7 @@ pub trait PointerAnalysis<'tcx, 'compilation> {
 
         // Main analysis phase
         let now = Instant::now();
-
+        
         self.initialize();
         self.propagate();
         

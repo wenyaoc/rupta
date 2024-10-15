@@ -559,6 +559,25 @@ impl<P: PAGPath> PAG<P> {
         }
     }
 
+    pub fn to_dot(&self, dot_path: &std::path::Path) {
+        use crate::util::dot::Dot;
+        let node_fmt = |node: &PAGNode<P>, f: &mut std::fmt::Formatter| -> std::fmt::Result {
+            write!(f, "{:?}", node.path())
+        };
+        let edge_fmt = |edge: &PAGEdge, f: &mut std::fmt::Formatter| -> std::fmt::Result {
+            write!(f, "{:?}", edge.kind)
+        };
+
+        let output = format!(
+            "{:?}",
+            Dot::with_graph_fmt(&self.graph, &[], &node_fmt, &edge_fmt)
+        );
+        match std::fs::write(dot_path, output) {
+            Ok(_) => (),
+            Err(e) => panic!("Failed to write dot file output: {:?}", e),
+        };
+    }
+
 }
 
 

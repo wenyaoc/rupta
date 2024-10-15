@@ -113,6 +113,12 @@ impl<'pta, 'tcx, 'compilation> AndersenPTA<'pta, 'tcx, 'compilation> {
         let fpag = unsafe { &*(self.pag.func_pags.get(&func_id).unwrap() as *const FuncPAG) };
         let edges_iter = fpag.internal_edges_iter();
         for (src, dst, kind) in edges_iter {
+            let src_base = src.get_base_path();
+            let dst_base = dst.get_base_path();
+            println!("src_base {:?}", src_base);
+            let src_ty = self.acx.get_path_rustc_type(&src_base).unwrap();
+            let dst_ty = self.acx.get_path_rustc_type(&dst_base).unwrap();
+            println!("src(src_ty) {:?}({:?}) => dst(dst_ty) {:?}({:?})", src, src_ty, dst, dst_ty);
             if let Some(edge_id) = self.pag.add_edge(src, dst, kind.clone()) {
                 if src.is_promoted_constant() || src.is_static_variable() {
                     self.inter_proc_edges_queue.push(edge_id);
@@ -242,6 +248,10 @@ impl<'pta, 'tcx, 'compilation> PointerAnalysis<'tcx, 'compilation> for AndersenP
 
     /// Solve the worklist problem using Propagator.
     fn propagate(&mut self) {
+        // println!("PAG after initialization: {:?}", self.pag);
+        let path = std::path::Path::new("/home/wenyao/stack-filtering/hello/pag_init.dot");
+        self.pag.to_dot(path);
+
         let mut iter_proc_edge_iter = self.inter_proc_edges_queue.iter_copied();
         // Solve until no new call relationship is found.
         loop {
@@ -267,6 +277,8 @@ impl<'pta, 'tcx, 'compilation> PointerAnalysis<'tcx, 'compilation> for AndersenP
                 self.process_new_call_instances(&new_call_instances);
             }
         }
+        let path = std::path::Path::new("/home/wenyao/stack-filtering/hello/pag_final.dot");
+        self.pag.to_dot(path);
     }
 
     /// Finalize the analysis.

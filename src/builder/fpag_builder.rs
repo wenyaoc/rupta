@@ -756,18 +756,20 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
             | mir::CastKind::PointerCoercion(PointerCoercion::UnsafeFnPointer) => {
                 // These kinds of pointer casts do not re-interpret the bits of the input as a 
                 // different type. We simply treat them as direct assignments.
-                let rh_path = match operand {
+                match operand {
                     mir::Operand::Move(place) | mir::Operand::Copy(place) => {
-                        self.get_path_for_place(place)
+                        let rh_path = self.get_path_for_place(place);
+                        self.add_direct_edge(rh_path, lh_path);
                     }
                     mir::Operand::Constant(box const_op) => {
                         debug!("
                             DynStar/MutToConstPointer/UnsafeFnPointer cast from a const operand!"
                         );
-                        self.visit_const_operand(const_op)
+                        let rh_path = self.visit_const_operand(const_op);
+                        self.add_direct_edge(rh_path, lh_path);
                     }
                 };
-                self.add_direct_edge(rh_path, lh_path);
+                
             }
             // Go from a fn-item type to a fn-pointer type.
             // For example: ``` p = foo as fn(i32) -> i32 (Pointer(ReifyFnPointer)); ```
