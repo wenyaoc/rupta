@@ -10,17 +10,16 @@ use super::pag::PAGEdgeEnum;
 use crate::mir::call_site::CallSite;
 use crate::mir::function::FuncId;
 use crate::mir::path::Path;
-use rustc_middle::ty::Ty;
 use crate::util::chunked_queue::{self, ChunkedQueue};
 
 /// An edge consists of the source path, the destination path and the PAG edge type.
-pub type InternalEdge<'tcx> = (Rc<Path>, Ty<'tcx>, Rc<Path>, Ty<'tcx>, PAGEdgeEnum);
+pub type InternalEdge = (Rc<Path>, Rc<Path>, PAGEdgeEnum);
 
 /// A function's pointer assignment graph, part of the whole program's PAG.
 #[derive(Debug)]
-pub struct FuncPAG<'fpag> {
+pub struct FuncPAG {
     pub(crate) func_id: FuncId,
-    pub(crate) internal_edges: ChunkedQueue<InternalEdge<'fpag>>,
+    pub(crate) internal_edges: ChunkedQueue<InternalEdge>,
     pub(crate) static_variables_involved: HashSet<Rc<Path>>,
 
     // Calls that can be statically resolved, including the Fn* trait calls that can 
@@ -38,7 +37,7 @@ pub struct FuncPAG<'fpag> {
     pub(crate) fnptr_callsites: Vec<(Rc<Path>, Rc<CallSite>)>,
 }
 
-impl FuncPAG<'_> {
+impl FuncPAG {
     pub fn new(func_id: FuncId) -> Self {
         FuncPAG {
             func_id,
@@ -52,8 +51,8 @@ impl FuncPAG<'_> {
         }
     }
 
-    pub fn add_internal_edge(&mut self, src: Rc<Path>, src_ty: Ty, dst: Rc<Path>, dst_ty: Ty, kind: PAGEdgeEnum) {
-        self.internal_edges.push((src, src_ty, dst, dst_ty, kind));
+    pub fn add_internal_edge(&mut self, src: Rc<Path>, dst: Rc<Path>, kind: PAGEdgeEnum) {
+        self.internal_edges.push((src, dst, kind));
     }
 
     pub fn internal_edges_iter(&self) -> chunked_queue::Iter<InternalEdge> {

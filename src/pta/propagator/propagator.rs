@@ -30,7 +30,7 @@ pub struct Propagator<'pta, 'tcx, 'compilation, F, P: PAGPath> {
     /// Points-to data
     pub(crate) pt_data: &'pta mut DiffPTDataTy,
     /// Pointer Assignment Graph
-    pub(crate) pag: &'pta mut PAG<'pta, P>,
+    pub(crate) pag: &'pta mut PAG<P>,
 
     /// New calls and new instance calls to be processed.
     /// Basically, we resolved the following kinds of dynamic calls:
