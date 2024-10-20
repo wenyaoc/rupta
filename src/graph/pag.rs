@@ -487,6 +487,14 @@ impl<P: PAGPath> PAG<P> {
         // Build pag for this function.
         let mut fpag = FuncPAG::new(func_id);
         let mir = acx.tcx.optimized_mir(def_id);
+        println!("fn: {:?}", func_id);
+        let binding = acx.tcx.fn_sig(def_id);
+        let fn_sig_skip_binder = binding.as_ref().skip_binder();
+        println!("fn_sig_skip_binder: {:?}", fn_sig_skip_binder.output().skip_binder());
+        // for (i, ty) in fn_sig_iter.enumerate() {
+        //     println!("fn_sig_iter: {:?}, {:?}", i, ty);
+        // }
+        
         let mut builder = fpag_builder::FuncPAGBuilder::new(acx, func_id, mir, &mut fpag);
         builder.build();
 
