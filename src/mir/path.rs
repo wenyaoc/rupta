@@ -33,6 +33,45 @@ pub struct Path {
     pub value: PathEnum,
 }
 
+impl Path {
+    pub fn get_func_id(&self) -> Option<FuncId> {
+        match &self.value {
+            PathEnum::LocalVariable { func_id, .. } => Some(func_id.clone()),
+            PathEnum::Parameter { func_id, .. } => Some(func_id.clone()),
+            PathEnum::ReturnValue { func_id } => Some(func_id.clone()),
+            PathEnum::Auxiliary { func_id, .. } => Some(func_id.clone()),
+            PathEnum::HeapObj { func_id, .. } => Some(func_id.clone()),
+            PathEnum::Function(func_id) => Some(func_id.clone()),
+            PathEnum::QualifiedPath { base, .. } => base.get_func_id(),
+            _ => None,
+        }
+    }
+
+    pub fn is_parameter(&self) -> bool {
+        match &self.value {
+            PathEnum::Parameter { .. } => true,
+            PathEnum::QualifiedPath { base, .. } => base.is_parameter(),
+            _ => false,
+        }    
+    }  
+    
+    pub fn is_call_return(&self) -> bool {
+        match &self.value {
+            PathEnum::ReturnValue { .. } => true,
+            PathEnum::QualifiedPath { base, .. } => base.is_call_return(),
+            _ => false,
+        }
+    }
+
+    pub fn get_parameter_ordinal(&self) -> Option<usize> {
+        match &self.value {
+            PathEnum::Parameter { ordinal, .. } => Some(*ordinal),
+            PathEnum::QualifiedPath { base, .. } => base.get_parameter_ordinal(),
+            _ => None,
+        }
+    }
+}
+
 impl Debug for Path {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         self.value.fmt(f)
@@ -51,6 +90,26 @@ impl CSPath {
         Rc::new(CSPath {
             cid, path
         })
+    }
+
+    pub fn get_context_id(&self) -> ContextId {
+        self.cid
+    }
+
+    pub fn get_cs_func_id(&self) -> Option<FuncId> {
+        self.path.get_func_id()
+    }
+
+    pub fn is_cs_parameter(&self) -> bool {
+        self.path.is_parameter()
+    }
+
+    pub fn get_parameter_ordinal(&self) -> Option<usize> {
+        self.path.get_parameter_ordinal()
+    }
+
+    pub fn is_cs_call_return(&self) -> bool {
+        self.path.is_call_return()
     }
 }
 

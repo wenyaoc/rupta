@@ -3,7 +3,7 @@
 // This source code is licensed under the GNU license found in the
 // LICENSE file in the root directory of this source tree.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter, Result};
 use std::rc::Rc;
 use std::time::Duration;
@@ -11,7 +11,7 @@ use std::time::Duration;
 use itertools::Itertools;
 use log::*;
 use rustc_middle::ty::TyCtxt;
-
+use crate::pts_set::points_to::PointsToSet;
 use super::*;
 use super::strategies::context_strategy::{ContextStrategy, KObjectSensitive};
 use super::strategies::stack_filtering::StackFilter;
@@ -61,6 +61,12 @@ pub struct ContextSensitivePTA<'pta, 'tcx, 'compilation, S: ContextStrategy> {
 
     pub stack_filter: Option<StackFilter<CSFuncId>>,
     pub pre_analysis_time: Duration,
+}
+
+#[derive(Debug)]
+pub struct FuncPTA {
+    pub param_pts: HashMap<Rc<CSPath>, HashSet<Rc<CSPath>>>,
+    pub out_pts: HashMap<Rc<CSPath>, HashSet<Rc<CSPath>>>,
 }
 
 impl<'pta, 'tcx, 'compilation, S: ContextStrategy> Debug for ContextSensitivePTA<'pta, 'tcx, 'compilation, S> {
@@ -341,6 +347,82 @@ impl<'pta, 'tcx, 'compilation, S: ContextStrategy> ContextSensitivePTA<'pta, 'tc
         &self.pt_data
     }
 
+    fn get_parpm_and_ret_static(&self) {
+        let mut func_ptas:HashMap::<CSFuncId, FuncPTA> = HashMap::new();
+        let pts_map = self.pt_data.propa_pts_map.clone();
+        for (node, pts) in pts_map {
+            if pts.is_empty() {
+                continue;
+            }
+            let pointee_set = self.get_pointee(&pts);
+            let var = self.pag.node_path(node);
+            let context_id = var.get_context_id();
+            let func_id = var.get_cs_func_id();  
+            match func_id { // TODO: fix this
+                Some(id) => {},
+                None => { continue;},
+            }
+            let callee_cs_func_id = CSFuncId::new(context_id, func_id.unwrap());
+            //get func signature
+            let func_ref = self.acx.get_function_reference(func_id.unwrap());
+            if let Some(callee_cg_node_id) = self.call_graph.func_nodes.get(&callee_cs_func_id){
+                
+                // Collect all return points-to data
+                if var.is_cs_call_return() {
+                    // println!("callee_cs_func_id: {:?}, func_ref: {:?}", callee_cs_func_id, func_ref);
+                    // ret_pts.entry(*callee_cg_node_id).or_insert(Vec::new()).push((var.clone(), pointee_set.clone()));
+                    let func_pta = func_ptas.entry(callee_cs_func_id).or_insert(FuncPTA{param_pts: HashMap::new(), out_pts: HashMap::new()});
+                    func_pta.out_pts.entry(var.clone()).or_insert(pointee_set.clone());
+                    // println!("  ret: {:?}, {:?}", var, pointee_set);
+                }
+            
+             
+                if var.is_cs_parameter() {
+                        // println!("callee_cs_func_id: {:?}, func_ref: {:?}", callee_cs_func_id, func_ref);
+                    // func_cfg.add_args_pts_to_cfg_block(0, var.path.clone(), pointee_set.clone());
+                    let func_pta = func_ptas.entry(callee_cs_func_id).or_insert(FuncPTA{param_pts: HashMap::new(), out_pts: HashMap::new()});
+                    func_pta.param_pts.entry(var.clone()).or_insert(pointee_set.clone());
+                    // println!("  args: {:?}, {:?}", var, pointee_set);
+                }
+
+            }
+        }
+
+        let mut func_count = 0;
+        let mut func_count_ref = 0;
+        for (func_id, func_pta) in func_ptas.iter() {
+            // let func_ref = self.acx.get_function_reference(func_id.func_id);
+            func_count += 1;
+            let mut param_is_ref = false;
+            let mut ret_is_ref = false;
+            for (param, param_pta) in func_pta.param_pts.iter() {
+                let param_type = self.acx.get_path_rustc_type(&param.path).unwrap();
+                if param_type.is_ref() { param_is_ref = true; }
+            }
+
+            for (ret, ret_pta) in func_pta.out_pts.iter() {
+                let ret_type = self.acx.get_path_rustc_type(&ret.path).unwrap();
+                if ret_type.is_ref() { ret_is_ref = true; }
+            }
+            if param_is_ref && ret_is_ref {
+                func_count_ref += 1;
+                println!("func_id: {:?}" , func_id);
+                println!("func_pta: {:?}", func_pta);
+            }
+        }
+        println!("func_count: {:?}, func_count_ref: {:?}", func_count, func_count_ref);
+        // println!("func_ptas: {:?}", func_ptas);
+    }
+
+
+    fn get_pointee(&self, pts: &PointsTo<NodeId>) -> HashSet<Rc<CSPath>> {
+        let mut pointee_set = HashSet::new();
+        for pointee in pts.iter() {
+            pointee_set.insert(self.pag.node_path(pointee).clone());
+        }
+        pointee_set
+    }
+
 }
 
 impl<'pta, 'tcx, 'compilation, S: ContextStrategy> PointerAnalysis<'tcx, 'compilation>
@@ -405,11 +487,13 @@ impl<'pta, 'tcx, 'compilation, S: ContextStrategy> PointerAnalysis<'tcx, 'compil
 
     /// Finalize the analysis.
     fn finalize(&self) {
+        // self.get_parpm_and_ret_static();
         // dump call graph, points-to results
         results_dumper::dump_results(self.acx, &self.call_graph, &self.pt_data, &self.pag);
         
         // dump pta statistics
         let pta_stat = ContextSensitiveStat::new(self);
         pta_stat.dump_stats();
-    }
+    }    
 }
+
