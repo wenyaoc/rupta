@@ -104,9 +104,13 @@ impl<'a, 'tcx, 'compilation> RapidTypeAnalysis<'a, 'tcx, 'compilation> {
         let mut has_new_functions = false;
         while let Some(func_id) = self.rf_iter.next() {
             has_new_functions = true;
+            // println!("Processing function: {:?}", func_id);
             if !self.visited_functions.contains(&func_id) {
                 let func_ref = self.acx.get_function_reference(func_id);
                 let def_id = func_ref.def_id;
+                // if def_id.is_local() {
+                //     println!("Processing local function: {:?}", def_id);
+                // }
                 let generic_args = &func_ref.generic_args;
 
                 // We don't count specially handled functions as we do not process them in pta

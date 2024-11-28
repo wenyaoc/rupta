@@ -39,6 +39,16 @@ impl Debug for Path {
     }
 }
 
+impl Path {
+    pub fn is_call_return(&self) -> bool {
+        match &self.value {
+            PathEnum::ReturnValue { .. } => true,
+            PathEnum::QualifiedPath { base, .. } => base.is_call_return(),
+            _ => false,
+        }
+    }
+
+}
 /// A path augmented with a context.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CSPath {
@@ -51,6 +61,10 @@ impl CSPath {
         Rc::new(CSPath {
             cid, path
         })
+    }
+
+    pub fn is_call_return(&self) -> bool {
+        self.path.is_call_return()
     }
 }
 
@@ -642,6 +656,14 @@ impl PAGPath for Rc<Path> {
         }
     }
 
+    fn is_call_return(&self) -> bool {
+        match &self.value {
+            PathEnum::ReturnValue { .. } => true,
+            PathEnum::QualifiedPath { base, .. } => base.is_call_return(),
+            _ => false,
+        }
+    }
+
 }
 
 impl PAGPath for Rc<CSPath> {
@@ -756,6 +778,14 @@ impl PAGPath for Rc<CSPath> {
             Some(CSFuncId { cid: self.cid, func_id })
         } else {
             None
+        }
+    }
+
+    fn is_call_return(&self) -> bool {
+        match &self.path.value {
+            PathEnum::ReturnValue { .. } => true,
+            PathEnum::QualifiedPath { base, .. } => base.is_call_return(),
+            _ => false,
         }
     }
 }

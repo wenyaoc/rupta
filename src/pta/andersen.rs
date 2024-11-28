@@ -24,6 +24,9 @@ use crate::rta::rta::RapidTypeAnalysis;
 use crate::util::chunked_queue;
 use crate::util::pta_statistics::AndersenStat;
 use crate::util::results_dumper;
+use std::collections::HashMap;
+use crate::builder::loan_builder::{FuncLoanMap, LoanBuilder};
+
 
 pub struct AndersenPTA<'pta, 'tcx, 'compilation> {
     /// The analysis context
@@ -52,6 +55,8 @@ pub struct AndersenPTA<'pta, 'tcx, 'compilation> {
 
     pub stack_filter: Option<StackFilter<FuncId>>,
     pub pre_analysis_time: Duration,
+
+    pub loans: HashMap<FuncId, FuncLoanMap<'tcx>>,
 }
 
 impl<'pta, 'compilation, 'tcx> Debug for AndersenPTA<'pta, 'compilation, 'tcx> {
@@ -79,6 +84,7 @@ impl<'pta, 'tcx, 'compilation> AndersenPTA<'pta, 'tcx, 'compilation> {
             assoc_calls: AssocCallGroup::new(),
             stack_filter: None,
             pre_analysis_time: Duration::ZERO,
+            loans: HashMap::new(),
         }
     }
 
@@ -100,6 +106,18 @@ impl<'pta, 'tcx, 'compilation> AndersenPTA<'pta, 'tcx, 'compilation> {
                     self.process_calls_in_fpag(func_id);
                 }
             }
+        }
+    }
+
+    pub fn compute_loans(&mut self, func_id: FuncId) {
+        
+        let def_id = self.acx.get_function_reference(func_id).def_id;
+        // let mut loans = FuncLoanMap::default();
+        if let Some(_local_def_id) = def_id.as_local() {
+            // Self::compute_loans(acx.tcx, def_id);
+            let loan_builder = LoanBuilder::new(self.acx.tcx, def_id);
+            let loans = loan_builder.compute_loans();
+            self.loans.insert(func_id, loans.clone());
         }
     }
 
@@ -257,6 +275,7 @@ impl<'pta, 'tcx, 'compilation> PointerAnalysis<'tcx, 'compilation> for AndersenP
                 &mut iter_proc_edge_iter,
                 &mut self.assoc_calls,
                 self.stack_filter.as_mut(),
+                &self.loans,
             );
             propagator.solve_worklist();
 

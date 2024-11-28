@@ -10,6 +10,7 @@
     min_specialization,        // for rustc_index::newtype_index
     type_alias_impl_trait,     // for impl Trait in trait definition, eg crate::mir::utils 
     trait_alias,
+    impl_trait_in_assoc_type,
 )]
 #![allow(
     clippy::single_match,
@@ -31,6 +32,9 @@ extern crate rustc_serialize;
 extern crate rustc_session;
 extern crate rustc_span;
 extern crate rustc_target;
+extern crate polonius_engine;
+extern crate rustc_infer;
+extern crate rustc_trait_selection;
 
 pub mod builder;
 pub mod graph;

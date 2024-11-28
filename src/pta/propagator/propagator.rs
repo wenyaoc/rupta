@@ -22,6 +22,8 @@ use crate::pta::*;
 use crate::pta::strategies::stack_filtering::{StackFilter, SFReachable};
 use crate::pts_set::points_to::PointsToSet;
 use crate::util::{self, chunked_queue, type_util};
+use crate::builder::loan_builder::{FuncLoanMap};
+use std::collections::HashMap;
 
 /// Propagating the points-to information along the PAG edges. 
 pub struct Propagator<'pta, 'tcx, 'compilation, F, P: PAGPath> {
@@ -70,6 +72,8 @@ pub struct Propagator<'pta, 'tcx, 'compilation, F, P: PAGPath> {
     assoc_calls: &'pta mut AssocCallGroup<NodeId, F, P>,
 
     stack_filter: Option<&'pta mut StackFilter<F>>,
+
+    loans: &'pta HashMap<F, FuncLoanMap<'tcx>>,
 }
 
 impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> where 
@@ -86,7 +90,8 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
         addr_edge_iter: &'pta mut chunked_queue::IterCopied<EdgeId>,
         inter_proc_edge_iter: &'pta mut chunked_queue::IterCopied<EdgeId>,
         assoc_calls: &'pta mut AssocCallGroup<NodeId, F, P>,
-        stack_filter: Option<&'pta mut StackFilter<F>>
+        stack_filter: Option<&'pta mut StackFilter<F>>,
+        loans: &'pta HashMap<F, FuncLoanMap<'tcx>>,
     ) -> Self {
         Propagator {
             acx,
@@ -99,6 +104,7 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
             inter_proc_edge_iter,
             assoc_calls,
             stack_filter,
+            loans,
         }
     }
 
@@ -703,13 +709,17 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
     fn propagate(&mut self, direct_edge: EdgeId, propa_diff: bool) {
         let mut changed = false;
         let (src, dst) = self.pag.graph().edge_endpoints(direct_edge).unwrap();
+        // println!("Propagating from {:?} -> {:?}", src, dst);
         // If src is a pointer or a reference.
         if self.get_propa_pts(src).is_some() || self.get_diff_pts(src).is_some() {
             // check the type of src and dst
             let (src_path, src_type) = self.node_path_and_ty(src);
             let (dst_path, dst_type) = self.node_path_and_ty(dst);
-            // debug!("Propagating from {:?}({:?}) -> {:?}({:?})", src_path, src_type, dst_path, dst_type);
-            
+            println!("Propagating from {:?}({}) -> {:?}({})", src_path, src_type, dst_path, dst_type);
+            if src_path.is_call_return() && src_type.is_ref() {
+                println!("src is call return and ref");
+            }
+       
             let type_filter_pred = Self::type_filter_pred();
             let stack_filter_pred = Self::stack_filter_pred(direct_edge);
 
@@ -723,6 +733,7 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
 
             let src_deref_type = type_util::get_dereferenced_type(src_type);
             let dst_deref_type = type_util::get_dereferenced_type(dst_type);
+            println!("src_deref_type: {:?}, dst_deref_type: {:?}", src_deref_type, dst_deref_type);
             if let Some(diff) = self.pt_data.get_diff_pts(src) {
                 for pointee in &diff.clone() {
                     let (pointee_path, pointee_type) = self.node_path_and_ty(pointee);

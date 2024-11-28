@@ -34,6 +34,8 @@ pub struct FuncPAG {
     // Pairs of function pointers and their callsites, including the fnptr
     // callsites that are speciallized from a Fn* trait callsite.
     pub(crate) fnptr_callsites: Vec<(Rc<Path>, Rc<CallSite>)>,
+
+    // pub func_loans: FuncLoanMap<'tcx>,
 }
 
 impl FuncPAG {
@@ -47,6 +49,7 @@ impl FuncPAG {
             dynamic_fntrait_callsites: Vec::new(),
             dynamic_dispatch_callsites: Vec::new(),
             fnptr_callsites: Vec::new(),
+            // func_loans: FuncLoanMap::default(),
         }
     }
 

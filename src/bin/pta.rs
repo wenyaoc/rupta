@@ -83,6 +83,13 @@ fn main() {
             rustc_command_line_arguments.push("-Z".into());
             rustc_command_line_arguments.push(always_encode_mir);
         }
+        rustc_command_line_arguments.push("-Zidentify-regions".into());
+        rustc_command_line_arguments.push("-Zmir-opt-level=0".into());
+        rustc_command_line_arguments.push("-Zpolonius".into());
+        rustc_command_line_arguments.push("-Zmaximal-hir-to-mir-coverage".into());
+        rustc_command_line_arguments.push("-Zpolonius".into());
+
+
         debug!("rustc command line arguments: {:?}", rustc_command_line_arguments);
         
         let mut callbacks = PTACallbacks::new(options);

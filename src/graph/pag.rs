@@ -59,6 +59,7 @@ pub trait PAGPath: Clone + PartialEq + Eq + Hash + Debug {
     fn concretized_heap_type<'tcx>(&self, acx: &AnalysisContext<'tcx, '_>) -> Option<Ty<'tcx>>;
     fn flatten_fields<'tcx>(self, acx: &mut AnalysisContext<'tcx, '_>) -> Vec<(usize, Self, Ty<'tcx>)>;
     fn get_containing_func(&self) -> Option<Self::FuncTy>;
+    fn is_call_return(&self) -> bool;
 }
 
 
@@ -484,11 +485,22 @@ impl<P: PAGPath> PAG<P> {
             self.promoted_funcs_map.insert(func_id, promoted_funcs);
         }
 
+
+
+
+
         // Build pag for this function.
         let mut fpag = FuncPAG::new(func_id);
         let mir = acx.tcx.optimized_mir(def_id);
-        let mut builder = fpag_builder::FuncPAGBuilder::new(acx, func_id, mir, &mut fpag);
+
+        // println!("region_inference_context: {:?}", body_with_facts.region_inference_context.var_infos);
+        let mut builder = fpag_builder::FuncPAGBuilder::new(acx, func_id, &mir, &mut fpag);
         builder.build();
+
+        
+
+
+
 
         // Build function pags for static variables encountered in this function.
         let mut static_funcs = HashSet::new();

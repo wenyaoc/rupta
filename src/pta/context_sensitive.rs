@@ -27,6 +27,8 @@ use crate::mir::path::{Path, CSPath, PathEnum};
 use crate::rta::rta::RapidTypeAnalysis;
 use crate::util::pta_statistics::ContextSensitiveStat;
 use crate::util::{self, chunked_queue, results_dumper};
+use std::collections::HashMap;
+use crate::builder::loan_builder::{FuncLoanMap, LoanBuilder};
 
 pub type CallSiteSensitivePTA<'pta, 'tcx, 'compilation> = ContextSensitivePTA<'pta, 'tcx, 'compilation, KCallSiteSensitive>;
 /// The object-sensitive pointer analysis for Rust has not been throughly evaluated so far.
@@ -61,6 +63,8 @@ pub struct ContextSensitivePTA<'pta, 'tcx, 'compilation, S: ContextStrategy> {
 
     pub stack_filter: Option<StackFilter<CSFuncId>>,
     pub pre_analysis_time: Duration,
+
+    pub loans: HashMap<CSFuncId, FuncLoanMap<'tcx>>,
 }
 
 impl<'pta, 'tcx, 'compilation, S: ContextStrategy> Debug for ContextSensitivePTA<'pta, 'tcx, 'compilation, S> {
@@ -89,6 +93,7 @@ impl<'pta, 'tcx, 'compilation, S: ContextStrategy> ContextSensitivePTA<'pta, 'tc
             ctx_strategy,
             stack_filter: None,
             pre_analysis_time: Duration::ZERO,
+            loans: HashMap::new(),
         }
     }
 
@@ -123,11 +128,25 @@ impl<'pta, 'tcx, 'compilation, S: ContextStrategy> ContextSensitivePTA<'pta, 'tc
                     func_ref.to_string(),
                     self.get_context_by_id(func.cid),
                 );
+                
                 if self.pag.build_func_pag(self.acx, func.func_id) {
                     self.add_fpag_edges(func);
                     self.process_calls_in_fpag(func);
+                    self.compute_loans(func);
                 }
             }
+        }
+    }
+
+    pub fn compute_loans(&mut self, func: CSFuncId) {
+        
+        let def_id = self.acx.get_function_reference(func.func_id).def_id;
+        // let mut loans = FuncLoanMap::default();
+        if let Some(_local_def_id) = def_id.as_local() {
+            // Self::compute_loans(acx.tcx, def_id);
+            let loan_builder = LoanBuilder::new(self.acx.tcx, def_id);
+            let loans = loan_builder.compute_loans();
+            self.loans.insert(func, loans.clone());
         }
     }
 
@@ -145,6 +164,7 @@ impl<'pta, 'tcx, 'compilation, S: ContextStrategy> ContextSensitivePTA<'pta, 'tc
             let cs_dst = self.mk_cs_path(dst, func.cid);
             if let Some(edge_id) = self.pag.add_edge(&cs_src, &cs_dst, kind.clone()) {
                 if cs_src.path.is_promoted_constant() || cs_src.path.is_static_variable() {
+                    // println!("add_fpag_edges edge_id: {:?}, cs_src: {:?}, cs_dst: {:?}", edge_id, cs_src, cs_dst);
                     self.inter_proc_edges_queue.push(edge_id);
                 }
             }
@@ -377,6 +397,7 @@ impl<'pta, 'tcx, 'compilation, S: ContextStrategy> PointerAnalysis<'tcx, 'compil
     /// Solve the worklist problem using Propagator.
     fn propagate(&mut self) {
         let mut iter_proc_edge_iter = self.inter_proc_edges_queue.iter_copied();
+        println!("inter_proc_edges_queue: {:?}", self.inter_proc_edges_queue);
         // Solve until no new call relationship is found.
         loop {
             let mut new_calls: Vec<(Rc<CSCallSite>, FuncId)> = Vec::new();
@@ -391,6 +412,7 @@ impl<'pta, 'tcx, 'compilation, S: ContextStrategy> PointerAnalysis<'tcx, 'compil
                 &mut iter_proc_edge_iter,
                 &mut self.assoc_calls,
                 self.stack_filter.as_mut(),
+                &self.loans,
             );
             propagator.solve_worklist();
 

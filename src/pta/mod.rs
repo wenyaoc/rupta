@@ -20,6 +20,7 @@ use crate::pts_set::points_to::HybridPointsToSet;
 use crate::pts_set::pt_data::DiffPTData;
 use crate::util::mem_watcher::MemoryWatcher;
 use crate::util::options::AnalysisOptions;
+use crate::util::borrowck_util;
 
 pub mod andersen;
 pub mod context_sensitive;
@@ -113,7 +114,10 @@ impl rustc_driver::Callbacks for PTACallbacks {
     fn config(&mut self, config: &mut interface::Config) {
         self.file_name = config.input.source_name().prefer_remapped_unconditionaly().to_string();
         debug!("Processing input file: {}", self.file_name);
-    }
+        println!("Processing input file: {}", self.file_name);
+
+        config.override_queries = Some(borrowck_util::override_queries);   
+    }    
 
     /// Called after the compiler has completed all analysis passes and before it lowers MIR to LLVM IR.
     /// At this point the compiler is ready to tell us all it knows and we can proceed to do abstract

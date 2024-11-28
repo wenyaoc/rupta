@@ -27,3 +27,4 @@ rpds = { version = "*", features = ["serde"] }
 rustc_tools_util = "*"
 petgraph = "*"
 shellwords = "*"
+smallvec = "*"

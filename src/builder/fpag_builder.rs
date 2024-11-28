@@ -12,10 +12,9 @@ use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter, Result};
 use std::rc::Rc;
-
 use rustc_hir::def::DefKind;
-use rustc_hir::def_id::DefId;
-use rustc_index::IndexVec;
+use rustc_hir::def_id::{DefId};
+
 use rustc_middle::mir;
 use rustc_middle::mir::interpret::{GlobalAlloc, Scalar};
 use rustc_middle::ty::adjustment::PointerCoercion;
@@ -33,7 +32,11 @@ use crate::mir::analysis_context::AnalysisContext;
 use crate::mir::path::{Path, PathEnum, PathSelector, PathSupport, ProjectionElems};
 use crate::util::{self, type_util};
 
+
 use super::substs_specializer::SubstsSpecializer;
+use rustc_index::IndexVec;
+
+
 
 /// A visitor that traverses the MIR associated with a particular function's body and
 /// build the function's pointer assignment graph.
@@ -50,6 +53,8 @@ pub struct FuncPAGBuilder<'pta, 'tcx, 'compilation> {
 
     /// Caches the path for each place visited in this function
     path_cache: HashMap<mir::Place<'tcx>, Rc<Path>>,
+
+    // func_loans: FuncLoanMap<'tcx>,
 }
 
 impl<'pta, 'tcx, 'compilation> Debug for FuncPAGBuilder<'pta, 'tcx, 'compilation> {
@@ -67,7 +72,9 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
         fpag: &'pta mut FuncPAG,
     ) -> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
         let func_ref = acx.get_function_reference(func_id);
-        debug!("Building FuncPAG for {:?}: {}", func_id, func_ref.to_string());
+        // debug!("Building FuncPAG for {:?}: {}", func_id, func_ref.to_string());
+
+
         // if func_ref.promoted.is_none() {
         //     util::pretty_print_mir(acx.tcx, func_ref.def_id);
         // }
@@ -1830,4 +1837,7 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
         Rc::new(CallSite::new(func_id, location, args, destination))
     }
 
+
+
 }
+
