@@ -9,7 +9,7 @@ use std::rc::Rc;
 use log::*;
 use rustc_hir::def_id::DefId;
 use rustc_middle::mir::Location;
-use rustc_middle::ty::Ty;
+use rustc_middle::ty::{Ty, Mutability};
 
 use crate::graph::pag::PAGPath;
 use crate::mir::context::ContextId;
@@ -18,7 +18,8 @@ use crate::util::type_util;
 
 use super::function::CSFuncId;
 use super::analysis_context::AnalysisContext;
-
+// use crate::builder::loan_builder::{FuncLoanMap, LoanSet};
+use crate::builder::fpag_builder::{FuncLoanMap, PathMap};
 /// Byte offset of metadata in fat pointer
 const PTR_METADATA_OFFSET: usize = 8;
 
@@ -664,6 +665,14 @@ impl PAGPath for Rc<Path> {
         }
     }
 
+    fn get_loan<'tcx>(&self, loans: &'tcx FuncLoanMap) -> Option<&'tcx PathMap> {
+        if let Some((mutablility, loan_set)) = loans.get(self) {
+            Some(loan_set)
+        } else {
+            None
+        }
+    }
+
 }
 
 impl PAGPath for Rc<CSPath> {
@@ -786,6 +795,14 @@ impl PAGPath for Rc<CSPath> {
             PathEnum::ReturnValue { .. } => true,
             PathEnum::QualifiedPath { base, .. } => base.is_call_return(),
             _ => false,
+        }
+    }
+
+    fn get_loan<'tcx>(&self, loans: &'tcx FuncLoanMap) -> Option<&'tcx PathMap> {
+        if let Some((mutablility, loan_set)) = loans.get(&self.path) {
+            Some(loan_set)
+        } else {
+            None
         }
     }
 }

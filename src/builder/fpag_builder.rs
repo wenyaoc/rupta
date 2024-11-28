@@ -9,7 +9,7 @@
 
 use log::*;
 use std::borrow::Borrow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter, Result};
 use std::rc::Rc;
 use rustc_hir::def::DefKind;
@@ -19,11 +19,11 @@ use rustc_middle::mir;
 use rustc_middle::mir::interpret::{GlobalAlloc, Scalar};
 use rustc_middle::ty::adjustment::PointerCoercion;
 use rustc_middle::ty;
-use rustc_middle::ty::{Const, Ty, TyCtxt, TyKind, GenericArgsRef};
+use rustc_middle::ty::{Const, Ty, TyCtxt, TyKind, GenericArgsRef, Mutability};
 use rustc_span::source_map::Spanned;
 use rustc_target::abi::FieldIdx;
 
-use crate::builder::{call_graph_builder, special_function_handler};
+use crate::builder::{call_graph_builder, special_function_handler, loan_builder};
 use crate::graph::func_pag::FuncPAG;
 use crate::graph::pag::PAGEdgeEnum;
 use crate::mir::call_site::CallSite;
@@ -36,8 +36,10 @@ use crate::util::{self, type_util};
 use super::substs_specializer::SubstsSpecializer;
 use rustc_index::IndexVec;
 
+use crate::builder::loan_builder::{PlaceLoanMap, LoanSet, LoanBuilder};
 
-
+pub type PathMap = HashMap<Rc<Path>, Mutability>;
+pub type FuncLoanMap = HashMap<Rc<Path>, (Mutability, PathMap)>;
 /// A visitor that traverses the MIR associated with a particular function's body and
 /// build the function's pointer assignment graph.
 pub struct FuncPAGBuilder<'pta, 'tcx, 'compilation> {
@@ -73,8 +75,6 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
     ) -> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
         let func_ref = acx.get_function_reference(func_id);
         // debug!("Building FuncPAG for {:?}: {}", func_id, func_ref.to_string());
-
-
         // if func_ref.promoted.is_none() {
         //     util::pretty_print_mir(acx.tcx, func_ref.def_id);
         // }
@@ -149,6 +149,26 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
             self.acx.set_path_rustc_type(static_variable.clone(), ret_type);
             self.add_internal_edges(ret_path, ret_type, static_variable, ret_type);
         }
+
+        let def_id = self.def_id();
+        if let Some(_local_def_id) = def_id.as_local() {
+            let loan_builder = LoanBuilder::new(self.acx.tcx, def_id);
+            let loans = loan_builder.compute_loans();
+            let mut func_loans = FuncLoanMap::new();
+            for (func_place, loans) in loans {
+                let func_path = self.get_path_for_place(&func_place);
+                let (mutability, loan_set) = loans;
+                let mut path_loan_set = PathMap::new();
+                for (loan_place, loan_mutability) in loan_set {
+                    let loan_path = self.get_path_for_place(&loan_place);
+                    path_loan_set.insert(loan_path, loan_mutability);
+                }
+                func_loans.insert(func_path, (mutability, path_loan_set));
+                
+            }
+            self.fpag.func_loans = func_loans;
+        }
+
     }
 
     pub fn visit_body(&mut self) {

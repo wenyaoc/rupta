@@ -27,9 +27,9 @@ use rustc_middle::{
 use crate::util::body::BodyExt;
 
 use rustc_middle::mir::visit::Visitor;
-type LoanSet<'tcx> = HashSet<(Place<'tcx>, Mutability)>;
+pub type LoanSet<'tcx> = HashSet<(Place<'tcx>, Mutability)>;
 type LoanMap<'tcx> = HashMap<RegionVid, LoanSet<'tcx>>;
-pub type FuncLoanMap<'tcx> = HashMap<Place<'tcx>, (Mutability, LoanSet<'tcx>)>;
+pub type PlaceLoanMap<'tcx> = HashMap<Place<'tcx>, (Mutability, LoanSet<'tcx>)>;
 
 #[derive(Default, Debug)]
 struct GatherBorrows<'tcx> {
@@ -74,7 +74,7 @@ impl<'tcx> LoanBuilder<'tcx> {
         Self { tcx, def_id }
     }
 
-    pub fn compute_loans(&self) -> FuncLoanMap<'tcx> {
+    pub fn compute_loans(&self) -> PlaceLoanMap<'tcx> {
         let tcx = self.tcx;
         let def_id = self.def_id;
         let local_def_id = def_id.expect_local();
@@ -290,7 +290,7 @@ impl<'tcx> LoanBuilder<'tcx> {
         }
         }
         // elapsed("fixpoint", start);
-        let mut func_loans: FuncLoanMap<'tcx> = HashMap::default();
+        let mut func_loans: PlaceLoanMap<'tcx> = HashMap::default();
         for (region, contain) in contains {
             if let Some(region_var) = hashmap.get(&region) {
                 for (path, mutability) in region_var{

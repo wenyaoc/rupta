@@ -12,7 +12,7 @@ use std::hash::Hash;
 use std::fmt::Debug;
 
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::Ty;
+use rustc_middle::ty::{Ty, Mutability};
 
 use super::func_pag::FuncPAG;
 use crate::builder::fpag_builder;
@@ -22,7 +22,8 @@ use crate::mir::analysis_context::AnalysisContext;
 use crate::mir::path::{PathEnum, ProjectionElems};
 use crate::util::bit_vec::Idx;
 use crate::util::chunked_queue::{self, ChunkedQueue};
-
+// use crate::builder::loan_builder::{FuncLoanMap, LoanSet};
+use crate::graph::pag::fpag_builder::{FuncLoanMap, PathMap};
 // Unique identifiers for graph node and edges.
 pub type PAGNodeId = NodeIndex<DefaultIx>;
 pub type PAGEdgeId = EdgeIndex<DefaultIx>;
@@ -60,8 +61,8 @@ pub trait PAGPath: Clone + PartialEq + Eq + Hash + Debug {
     fn flatten_fields<'tcx>(self, acx: &mut AnalysisContext<'tcx, '_>) -> Vec<(usize, Self, Ty<'tcx>)>;
     fn get_containing_func(&self) -> Option<Self::FuncTy>;
     fn is_call_return(&self) -> bool;
+    fn get_loan<'tcx>(&self, loans: &'tcx FuncLoanMap) -> Option<&'tcx PathMap>;
 }
-
 
 pub struct PAGNode<P: PAGPath> {
     path: P,
@@ -496,11 +497,6 @@ impl<P: PAGPath> PAG<P> {
         // println!("region_inference_context: {:?}", body_with_facts.region_inference_context.var_infos);
         let mut builder = fpag_builder::FuncPAGBuilder::new(acx, func_id, &mir, &mut fpag);
         builder.build();
-
-        
-
-
-
 
         // Build function pags for static variables encountered in this function.
         let mut static_funcs = HashSet::new();

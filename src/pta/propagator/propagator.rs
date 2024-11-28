@@ -22,7 +22,7 @@ use crate::pta::*;
 use crate::pta::strategies::stack_filtering::{StackFilter, SFReachable};
 use crate::pts_set::points_to::PointsToSet;
 use crate::util::{self, chunked_queue, type_util};
-use crate::builder::loan_builder::{FuncLoanMap};
+use crate::builder::fpag_builder::{FuncLoanMap, PathMap};
 use std::collections::HashMap;
 
 /// Propagating the points-to information along the PAG edges. 
@@ -73,11 +73,11 @@ pub struct Propagator<'pta, 'tcx, 'compilation, F, P: PAGPath> {
 
     stack_filter: Option<&'pta mut StackFilter<F>>,
 
-    loans: &'pta HashMap<F, FuncLoanMap<'tcx>>,
+    loans: &'pta HashMap<F, FuncLoanMap>,
 }
 
 impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> where 
-    F: Copy + Into<FuncId> + std::cmp::Eq + std::hash::Hash + SFReachable,
+    F: Copy + Into<FuncId> + std::cmp::Eq + std::hash::Hash + SFReachable + std::fmt::Debug,
     P: PAGPath<FuncTy = F>,
 {
     /// Constructor
@@ -91,7 +91,7 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
         inter_proc_edge_iter: &'pta mut chunked_queue::IterCopied<EdgeId>,
         assoc_calls: &'pta mut AssocCallGroup<NodeId, F, P>,
         stack_filter: Option<&'pta mut StackFilter<F>>,
-        loans: &'pta HashMap<F, FuncLoanMap<'tcx>>,
+        loans: &'pta HashMap<F, FuncLoanMap>,
     ) -> Self {
         Propagator {
             acx,
@@ -715,11 +715,7 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
             // check the type of src and dst
             let (src_path, src_type) = self.node_path_and_ty(src);
             let (dst_path, dst_type) = self.node_path_and_ty(dst);
-            println!("Propagating from {:?}({}) -> {:?}({})", src_path, src_type, dst_path, dst_type);
-            if src_path.is_call_return() && src_type.is_ref() {
-                println!("src is call return and ref");
-            }
-       
+            let mut ret_ref = false;       
             let type_filter_pred = Self::type_filter_pred();
             let stack_filter_pred = Self::stack_filter_pred(direct_edge);
 
@@ -731,9 +727,17 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
                 return;
             }
 
+            if src_path.is_call_return() && src_type.is_ref() {
+                if let Some(func) = dst_path.get_containing_func() {
+                    if self.loans.contains_key(&func) {
+                        ret_ref = true;
+                    }
+                }
+            }
+
             let src_deref_type = type_util::get_dereferenced_type(src_type);
             let dst_deref_type = type_util::get_dereferenced_type(dst_type);
-            println!("src_deref_type: {:?}, dst_deref_type: {:?}", src_deref_type, dst_deref_type);
+            // println!("src_deref_type: {:?}, dst_deref_type: {:?}", src_deref_type, dst_deref_type);
             if let Some(diff) = self.pt_data.get_diff_pts(src) {
                 for pointee in &diff.clone() {
                     let (pointee_path, pointee_type) = self.node_path_and_ty(pointee);
@@ -745,6 +749,18 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
                         self.collect_filtered_pts(direct_edge, pointee);
                         continue;
                     }
+
+                    if ret_ref {
+                        self.check_loans(&dst_path, &pointee_path);
+                        // let func = dst_path.get_containing_func().unwrap();
+                        // if let Some(pointee_func) = pointee_path.get_containing_func() {
+                        //     if func == pointee_func {
+                        //         let loans = self.loans.get(&func).unwrap();
+                        //         println!("Loans: {:?}", loans);
+                        //         println!("Adding pts from {:?} to {:?}", pointee_path, dst_path);
+                        //     }
+                        // }
+                    } 
 
                     changed |= self.add_pts(dst, pointee);
                 }
@@ -784,6 +800,25 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
         }
         if changed {
             self.worklist.push_back(dst);
+        }
+    }
+
+
+    fn check_loans(&mut self, dst_path: &P, pointee_path: &P) {
+        let dst_func = dst_path.get_containing_func().unwrap();
+        if let Some(pointee_func) = pointee_path.get_containing_func() {
+            if dst_func == pointee_func {
+                let loans = self.loans.get(&dst_func).unwrap();
+                println!("Loans: {:?}", loans);
+                println!("Adding pts from {:?} to {:?}", pointee_path, dst_path);
+                if let Some(loan_set) = dst_path.get_loan(loans) {
+
+                    println!("Loan set: {:?}", loan_set);
+                }
+                // if let Some(ordinal) = pointee_path.get_ordinal() {
+                //     println!("Ordinal: {:?}", ordinal);
+                // }
+            }
         }
     }
 

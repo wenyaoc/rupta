@@ -11,7 +11,7 @@ use crate::mir::call_site::CallSite;
 use crate::mir::function::FuncId;
 use crate::mir::path::Path;
 use crate::util::chunked_queue::{self, ChunkedQueue};
-
+use crate::builder::fpag_builder::{FuncLoanMap};
 /// An edge consists of the source path, the destination path and the PAG edge type.
 pub type InternalEdge = (Rc<Path>, Rc<Path>, PAGEdgeEnum);
 
@@ -35,7 +35,7 @@ pub struct FuncPAG {
     // callsites that are speciallized from a Fn* trait callsite.
     pub(crate) fnptr_callsites: Vec<(Rc<Path>, Rc<CallSite>)>,
 
-    // pub func_loans: FuncLoanMap<'tcx>,
+    pub func_loans: FuncLoanMap,
 }
 
 impl FuncPAG {
@@ -49,7 +49,7 @@ impl FuncPAG {
             dynamic_fntrait_callsites: Vec::new(),
             dynamic_dispatch_callsites: Vec::new(),
             fnptr_callsites: Vec::new(),
-            // func_loans: FuncLoanMap::default(),
+            func_loans: FuncLoanMap::new(),
         }
     }
 

@@ -25,8 +25,8 @@ use crate::util::chunked_queue;
 use crate::util::pta_statistics::AndersenStat;
 use crate::util::results_dumper;
 use std::collections::HashMap;
-use crate::builder::loan_builder::{FuncLoanMap, LoanBuilder};
-
+use crate::builder::fpag_builder::{FuncLoanMap, PathMap};
+use crate::builder::loan_builder::LoanBuilder;
 
 pub struct AndersenPTA<'pta, 'tcx, 'compilation> {
     /// The analysis context
@@ -56,7 +56,7 @@ pub struct AndersenPTA<'pta, 'tcx, 'compilation> {
     pub stack_filter: Option<StackFilter<FuncId>>,
     pub pre_analysis_time: Duration,
 
-    pub loans: HashMap<FuncId, FuncLoanMap<'tcx>>,
+    pub loans: HashMap<FuncId, FuncLoanMap>,
 }
 
 impl<'pta, 'compilation, 'tcx> Debug for AndersenPTA<'pta, 'compilation, 'tcx> {
@@ -84,7 +84,7 @@ impl<'pta, 'tcx, 'compilation> AndersenPTA<'pta, 'tcx, 'compilation> {
             assoc_calls: AssocCallGroup::new(),
             stack_filter: None,
             pre_analysis_time: Duration::ZERO,
-            loans: HashMap::new(),
+            loans: HashMap::default(),
         }
     }
 
@@ -104,22 +104,28 @@ impl<'pta, 'tcx, 'compilation> AndersenPTA<'pta, 'tcx, 'compilation> {
                 if self.pag.build_func_pag(self.acx, func_id) {
                     self.add_fpag_edges(func_id);
                     self.process_calls_in_fpag(func_id);
+                    self.get_loans(func_id);
                 }
             }
         }
     }
-
-    pub fn compute_loans(&mut self, func_id: FuncId) {
-        
-        let def_id = self.acx.get_function_reference(func_id).def_id;
-        // let mut loans = FuncLoanMap::default();
-        if let Some(_local_def_id) = def_id.as_local() {
-            // Self::compute_loans(acx.tcx, def_id);
-            let loan_builder = LoanBuilder::new(self.acx.tcx, def_id);
-            let loans = loan_builder.compute_loans();
-            self.loans.insert(func_id, loans.clone());
-        }
+    pub fn get_loans(&mut self, func_id: FuncId) {
+        let fpag = unsafe { &*(self.pag.func_pags.get(&func_id).unwrap() as *const FuncPAG) };
+        let loans = &fpag.func_loans;
+        self.loans.insert(func_id, loans.clone());
     }
+
+    // pub fn compute_loans(&mut self, func_id: FuncId) {
+        
+    //     let def_id = self.acx.get_function_reference(func_id).def_id;
+    //     // let mut loans = FuncLoanMap::default();
+    //     if let Some(_local_def_id) = def_id.as_local() {
+    //         // Self::compute_loans(acx.tcx, def_id);
+    //         let loan_builder = LoanBuilder::new(self.acx.tcx, def_id);
+    //         let loans = loan_builder.compute_loans();
+    //         // self.loans.insert(func_id, loans.clone());
+    //     }
+    // }
 
     /// Adds internal edges of a function pag to the whole program's pag.
     /// The function pag for the given def_id should be built before calling this function.

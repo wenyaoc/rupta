@@ -28,7 +28,8 @@ use crate::rta::rta::RapidTypeAnalysis;
 use crate::util::pta_statistics::ContextSensitiveStat;
 use crate::util::{self, chunked_queue, results_dumper};
 use std::collections::HashMap;
-use crate::builder::loan_builder::{FuncLoanMap, LoanBuilder};
+use crate::builder::fpag_builder::{FuncLoanMap, PathMap};
+use crate::builder::loan_builder::LoanBuilder;
 
 pub type CallSiteSensitivePTA<'pta, 'tcx, 'compilation> = ContextSensitivePTA<'pta, 'tcx, 'compilation, KCallSiteSensitive>;
 /// The object-sensitive pointer analysis for Rust has not been throughly evaluated so far.
@@ -63,8 +64,8 @@ pub struct ContextSensitivePTA<'pta, 'tcx, 'compilation, S: ContextStrategy> {
 
     pub stack_filter: Option<StackFilter<CSFuncId>>,
     pub pre_analysis_time: Duration,
-
-    pub loans: HashMap<CSFuncId, FuncLoanMap<'tcx>>,
+    loans: HashMap<CSFuncId, FuncLoanMap>,
+    
 }
 
 impl<'pta, 'tcx, 'compilation, S: ContextStrategy> Debug for ContextSensitivePTA<'pta, 'tcx, 'compilation, S> {
@@ -132,22 +133,17 @@ impl<'pta, 'tcx, 'compilation, S: ContextStrategy> ContextSensitivePTA<'pta, 'tc
                 if self.pag.build_func_pag(self.acx, func.func_id) {
                     self.add_fpag_edges(func);
                     self.process_calls_in_fpag(func);
-                    self.compute_loans(func);
+                    self.get_loans(func);
                 }
             }
         }
     }
 
-    pub fn compute_loans(&mut self, func: CSFuncId) {
+    pub fn get_loans(&mut self, func: CSFuncId) {
         
-        let def_id = self.acx.get_function_reference(func.func_id).def_id;
-        // let mut loans = FuncLoanMap::default();
-        if let Some(_local_def_id) = def_id.as_local() {
-            // Self::compute_loans(acx.tcx, def_id);
-            let loan_builder = LoanBuilder::new(self.acx.tcx, def_id);
-            let loans = loan_builder.compute_loans();
-            self.loans.insert(func, loans.clone());
-        }
+        let fpag = unsafe { &*(self.pag.func_pags.get(&func.func_id).unwrap() as *const FuncPAG) };
+        let loans = &fpag.func_loans;
+        self.loans.insert(func, loans.clone());
     }
 
     /// Adds internal edges of a function pag to the whole program's pag.
@@ -397,7 +393,6 @@ impl<'pta, 'tcx, 'compilation, S: ContextStrategy> PointerAnalysis<'tcx, 'compil
     /// Solve the worklist problem using Propagator.
     fn propagate(&mut self) {
         let mut iter_proc_edge_iter = self.inter_proc_edges_queue.iter_copied();
-        println!("inter_proc_edges_queue: {:?}", self.inter_proc_edges_queue);
         // Solve until no new call relationship is found.
         loop {
             let mut new_calls: Vec<(Rc<CSCallSite>, FuncId)> = Vec::new();
