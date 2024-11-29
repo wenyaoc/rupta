@@ -28,7 +28,7 @@ use crate::rta::rta::RapidTypeAnalysis;
 use crate::util::pta_statistics::ContextSensitiveStat;
 use crate::util::{self, chunked_queue, results_dumper};
 use std::collections::HashMap;
-use crate::builder::fpag_builder::{FuncLoanMap, PathMap};
+use crate::builder::fpag_builder::{FuncLoanMap, PathLoanMap};
 use crate::builder::loan_builder::LoanBuilder;
 
 pub type CallSiteSensitivePTA<'pta, 'tcx, 'compilation> = ContextSensitivePTA<'pta, 'tcx, 'compilation, KCallSiteSensitive>;

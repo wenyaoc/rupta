@@ -38,8 +38,8 @@ use rustc_index::IndexVec;
 
 use crate::builder::loan_builder::{PlaceLoanMap, LoanSet, LoanBuilder};
 
-pub type PathMap = HashMap<Rc<Path>, Mutability>;
-pub type FuncLoanMap = HashMap<Rc<Path>, (Mutability, PathMap)>;
+pub type PathLoanMap = HashMap<Rc<Path>, Mutability>;
+pub type FuncLoanMap = HashMap<Rc<Path>, (Mutability, PathLoanMap)>;
 /// A visitor that traverses the MIR associated with a particular function's body and
 /// build the function's pointer assignment graph.
 pub struct FuncPAGBuilder<'pta, 'tcx, 'compilation> {
@@ -158,7 +158,7 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
             for (func_place, loans) in loans {
                 let func_path = self.get_path_for_place(&func_place);
                 let (mutability, loan_set) = loans;
-                let mut path_loan_set = PathMap::new();
+                let mut path_loan_set = PathLoanMap::new();
                 for (loan_place, loan_mutability) in loan_set {
                     let loan_path = self.get_path_for_place(&loan_place);
                     path_loan_set.insert(loan_path, loan_mutability);

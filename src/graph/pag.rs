@@ -23,7 +23,7 @@ use crate::mir::path::{PathEnum, ProjectionElems};
 use crate::util::bit_vec::Idx;
 use crate::util::chunked_queue::{self, ChunkedQueue};
 // use crate::builder::loan_builder::{FuncLoanMap, LoanSet};
-use crate::graph::pag::fpag_builder::{FuncLoanMap, PathMap};
+use crate::graph::pag::fpag_builder::{FuncLoanMap, PathLoanMap};
 // Unique identifiers for graph node and edges.
 pub type PAGNodeId = NodeIndex<DefaultIx>;
 pub type PAGEdgeId = EdgeIndex<DefaultIx>;
@@ -61,7 +61,8 @@ pub trait PAGPath: Clone + PartialEq + Eq + Hash + Debug {
     fn flatten_fields<'tcx>(self, acx: &mut AnalysisContext<'tcx, '_>) -> Vec<(usize, Self, Ty<'tcx>)>;
     fn get_containing_func(&self) -> Option<Self::FuncTy>;
     fn is_call_return(&self) -> bool;
-    fn get_loan<'tcx>(&self, loans: &'tcx FuncLoanMap) -> Option<&'tcx PathMap>;
+    fn get_path_loans<'tcx>(&self, loans: &'tcx FuncLoanMap) -> Option<&'tcx PathLoanMap>;
+    fn contains_loans<'tcx>(&self, loans: &'tcx PathLoanMap) -> bool;
 }
 
 pub struct PAGNode<P: PAGPath> {

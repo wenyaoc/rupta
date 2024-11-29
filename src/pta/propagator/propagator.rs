@@ -22,7 +22,7 @@ use crate::pta::*;
 use crate::pta::strategies::stack_filtering::{StackFilter, SFReachable};
 use crate::pts_set::points_to::PointsToSet;
 use crate::util::{self, chunked_queue, type_util};
-use crate::builder::fpag_builder::{FuncLoanMap, PathMap};
+use crate::builder::fpag_builder::{FuncLoanMap, PathLoanMap};
 use std::collections::HashMap;
 
 /// Propagating the points-to information along the PAG edges. 
@@ -751,15 +751,9 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
                     }
 
                     if ret_ref {
-                        self.check_loans(&dst_path, &pointee_path);
-                        // let func = dst_path.get_containing_func().unwrap();
-                        // if let Some(pointee_func) = pointee_path.get_containing_func() {
-                        //     if func == pointee_func {
-                        //         let loans = self.loans.get(&func).unwrap();
-                        //         println!("Loans: {:?}", loans);
-                        //         println!("Adding pts from {:?} to {:?}", pointee_path, dst_path);
-                        //     }
-                        // }
+                        if !self.check_loans(&dst_path, &pointee_path) {
+                            continue;
+                        }
                     } 
 
                     changed |= self.add_pts(dst, pointee);
@@ -804,22 +798,22 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
     }
 
 
-    fn check_loans(&mut self, dst_path: &P, pointee_path: &P) {
+    fn check_loans(&mut self, dst_path: &P, pointee_path: &P) -> bool {
         let dst_func = dst_path.get_containing_func().unwrap();
         if let Some(pointee_func) = pointee_path.get_containing_func() {
             if dst_func == pointee_func {
-                let loans = self.loans.get(&dst_func).unwrap();
-                println!("Loans: {:?}", loans);
+                let dst_func_loans = self.loans.get(&dst_func).unwrap();
+                println!("Loans: {:?}", dst_func_loans);
                 println!("Adding pts from {:?} to {:?}", pointee_path, dst_path);
-                if let Some(loan_set) = dst_path.get_loan(loans) {
-
-                    println!("Loan set: {:?}", loan_set);
+                if let Some(dst_loan_set) = dst_path.get_path_loans(dst_func_loans) {
+                    println!("Loan set: {:?}", dst_loan_set);
+                    if !pointee_path.contains_loans(&dst_loan_set) {
+                        return false;
+                    }
                 }
-                // if let Some(ordinal) = pointee_path.get_ordinal() {
-                //     println!("Ordinal: {:?}", ordinal);
-                // }
-            }
+            } 
         }
+        true
     }
 
     /// Adds cast edges between src and dst, src --cast--> dst, and dst --cast-->src.

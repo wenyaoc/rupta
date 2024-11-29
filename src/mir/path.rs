@@ -19,7 +19,7 @@ use crate::util::type_util;
 use super::function::CSFuncId;
 use super::analysis_context::AnalysisContext;
 // use crate::builder::loan_builder::{FuncLoanMap, LoanSet};
-use crate::builder::fpag_builder::{FuncLoanMap, PathMap};
+use crate::builder::fpag_builder::{FuncLoanMap, PathLoanMap};
 /// Byte offset of metadata in fat pointer
 const PTR_METADATA_OFFSET: usize = 8;
 
@@ -665,12 +665,16 @@ impl PAGPath for Rc<Path> {
         }
     }
 
-    fn get_loan<'tcx>(&self, loans: &'tcx FuncLoanMap) -> Option<&'tcx PathMap> {
+    fn get_path_loans<'tcx>(&self, loans: &'tcx FuncLoanMap) -> Option<&'tcx PathLoanMap> {
         if let Some((mutablility, loan_set)) = loans.get(self) {
             Some(loan_set)
         } else {
             None
         }
+    }
+
+    fn contains_loans<'tcx>(&self, loans: &'tcx PathLoanMap) -> bool {
+        loans.contains_key(self)
     }
 
 }
@@ -798,11 +802,15 @@ impl PAGPath for Rc<CSPath> {
         }
     }
 
-    fn get_loan<'tcx>(&self, loans: &'tcx FuncLoanMap) -> Option<&'tcx PathMap> {
+    fn get_path_loans<'tcx>(&self, loans: &'tcx FuncLoanMap) -> Option<&'tcx PathLoanMap> {
         if let Some((mutablility, loan_set)) = loans.get(&self.path) {
             Some(loan_set)
         } else {
             None
         }
+    }
+
+    fn contains_loans<'tcx>(&self, loans: &'tcx PathLoanMap) -> bool {
+        loans.contains_key(&self.path)
     }
 }

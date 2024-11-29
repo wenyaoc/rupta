@@ -25,7 +25,7 @@ use crate::util::chunked_queue;
 use crate::util::pta_statistics::AndersenStat;
 use crate::util::results_dumper;
 use std::collections::HashMap;
-use crate::builder::fpag_builder::{FuncLoanMap, PathMap};
+use crate::builder::fpag_builder::{FuncLoanMap, PathLoanMap};
 use crate::builder::loan_builder::LoanBuilder;
 
 pub struct AndersenPTA<'pta, 'tcx, 'compilation> {
