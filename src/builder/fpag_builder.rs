@@ -22,7 +22,7 @@ use rustc_middle::ty;
 use rustc_middle::ty::{Const, Ty, TyCtxt, TyKind, GenericArgsRef, Mutability};
 use rustc_span::source_map::Spanned;
 use rustc_target::abi::FieldIdx;
-
+use std::panic::{self, AssertUnwindSafe};
 use crate::builder::{call_graph_builder, special_function_handler, loan_builder};
 use crate::graph::func_pag::FuncPAG;
 use crate::graph::pag::PAGEdgeEnum;
@@ -153,20 +153,32 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
         let def_id = self.def_id();
         if let Some(_local_def_id) = def_id.as_local() {
             let loan_builder = LoanBuilder::new(self.acx.tcx, def_id);
-            let loans = loan_builder.compute_loans();
-            let mut func_loans = FuncLoanMap::new();
-            for (func_place, loans) in loans {
-                let func_path = self.get_path_for_place(&func_place);
-                let (mutability, loan_set) = loans;
-                let mut path_loan_set = PathLoanMap::new();
-                for (loan_place, loan_mutability) in loan_set {
-                    let loan_path = self.get_path_for_place(&loan_place);
-                    path_loan_set.insert(loan_path, loan_mutability);
+            let result = panic::catch_unwind(AssertUnwindSafe(|| { loan_builder.compute_loans()}));
+            match result {
+                Ok(loans) => {
+                    // println!("loans: {:?}", loans);
+                    let mut func_loans = FuncLoanMap::new();
+                    for (func_places, loans) in loans {
+                        // let func_path = self.get_path_for_place(&func_places);
+                        if let Some(func_path) = self.path_cache.get(&func_places) {
+                            let (mutability, loan_set) = loans;
+                            let mut path_loan_set = PathLoanMap::new();
+                            for (loan_place, loan_mutability) in loan_set {
+                                if let Some(loan_path) = self.path_cache.get(&loan_place) {
+                                    path_loan_set.insert(loan_path.clone(), loan_mutability);
+                                }
+                            }
+                            func_loans.insert(func_path.clone(), (mutability, path_loan_set));
+                        }
+                        
+                    }
+                    self.fpag.func_loans = func_loans;
+                    println!("func_loans: {:?}", self.fpag.func_loans);
                 }
-                func_loans.insert(func_path, (mutability, path_loan_set));
-                
+                Err(_) => {
+                    println!("Loan computation failed for function: {:?}", self.func_id);
+                }
             }
-            self.fpag.func_loans = func_loans;
         }
 
     }

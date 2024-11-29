@@ -13,7 +13,7 @@ use std::{cell::RefCell, hash::Hash, pin::Pin};
 
 pub struct Cache<In, Out>(RefCell<HashMap<In, Option<Pin<Box<Out>>>>>);
 use rustc_data_structures::fx::FxHashMap as HashMap;
-
+use log::info;
 
 impl<In, Out> Cache<In, Out>
 where
