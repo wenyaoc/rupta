@@ -12,7 +12,7 @@ use std::hash::Hash;
 use std::fmt::Debug;
 
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::{Ty, Mutability};
+use rustc_middle::ty::{Ty};
 
 use super::func_pag::FuncPAG;
 use crate::builder::fpag_builder;

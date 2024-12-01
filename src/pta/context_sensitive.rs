@@ -28,8 +28,7 @@ use crate::rta::rta::RapidTypeAnalysis;
 use crate::util::pta_statistics::ContextSensitiveStat;
 use crate::util::{self, chunked_queue, results_dumper};
 use std::collections::HashMap;
-use crate::builder::fpag_builder::{FuncLoanMap, PathLoanMap};
-use crate::builder::loan_builder::LoanBuilder;
+use crate::builder::fpag_builder::{FuncLoanMap};
 
 pub type CallSiteSensitivePTA<'pta, 'tcx, 'compilation> = ContextSensitivePTA<'pta, 'tcx, 'compilation, KCallSiteSensitive>;
 /// The object-sensitive pointer analysis for Rust has not been throughly evaluated so far.

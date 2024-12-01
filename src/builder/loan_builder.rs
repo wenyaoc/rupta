@@ -2,7 +2,7 @@
 // use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::fmt::{Debug};
-use std::{hash::Hash, time::Instant};
+use std::{hash::Hash};
 use rustc_hir::def_id::{DefId};
 use rustc_middle::ty::{Region, Ty, TyCtxt};
 // use rustc_data_structures::intern::Interned;
@@ -51,9 +51,9 @@ rustc_index::newtype_index! {
 impl<'tcx> Visitor<'tcx> for GatherBorrows<'tcx> {
     fn visit_assign(
       &mut self,
-      place: &Place<'tcx>,
+      _place: &Place<'tcx>,
       rvalue: &Rvalue<'tcx>,
-      location: Location,
+      _location: Location,
     ) {
       if let Rvalue::Ref(region_pat!(region), kind, borrowed_place) = rvalue {
         self.borrows.push((*region, *kind, *borrowed_place));
@@ -80,7 +80,7 @@ impl<'tcx> LoanBuilder<'tcx> {
         let local_def_id = def_id.expect_local();
         let body_with_facts = borrowck_util::get_bodies(tcx, local_def_id);
         let static_region = RegionVid::from_usize(0);
-        let start = Instant::now();
+        // let start = Instant::now();
         // println!("func_id: {:?}", def_id);
         // println!("input_facts: {:?}", body_with_facts.input_facts);
         let subset_base = &body_with_facts

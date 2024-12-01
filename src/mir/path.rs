@@ -9,7 +9,7 @@ use std::rc::Rc;
 use log::*;
 use rustc_hir::def_id::DefId;
 use rustc_middle::mir::Location;
-use rustc_middle::ty::{Ty, Mutability};
+use rustc_middle::ty::{Ty};
 
 use crate::graph::pag::PAGPath;
 use crate::mir::context::ContextId;
@@ -666,7 +666,7 @@ impl PAGPath for Rc<Path> {
     }
 
     fn get_path_loans<'tcx>(&self, loans: &'tcx FuncLoanMap) -> Option<&'tcx PathLoanMap> {
-        if let Some((mutablility, loan_set)) = loans.get(self) {
+        if let Some((_, loan_set)) = loans.get(self) {
             Some(loan_set)
         } else {
             None
@@ -803,7 +803,7 @@ impl PAGPath for Rc<CSPath> {
     }
 
     fn get_path_loans<'tcx>(&self, loans: &'tcx FuncLoanMap) -> Option<&'tcx PathLoanMap> {
-        if let Some((mutablility, loan_set)) = loans.get(&self.path) {
+        if let Some((_, loan_set)) = loans.get(&self.path) {
             Some(loan_set)
         } else {
             None

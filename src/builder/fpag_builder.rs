@@ -9,7 +9,7 @@
 
 use log::*;
 use std::borrow::Borrow;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use std::fmt::{Debug, Formatter, Result};
 use std::rc::Rc;
 use rustc_hir::def::DefKind;
@@ -23,7 +23,7 @@ use rustc_middle::ty::{Const, Ty, TyCtxt, TyKind, GenericArgsRef, Mutability};
 use rustc_span::source_map::Spanned;
 use rustc_target::abi::FieldIdx;
 use std::panic::{self, AssertUnwindSafe};
-use crate::builder::{call_graph_builder, special_function_handler, loan_builder};
+use crate::builder::{call_graph_builder, special_function_handler};
 use crate::graph::func_pag::FuncPAG;
 use crate::graph::pag::PAGEdgeEnum;
 use crate::mir::call_site::CallSite;
@@ -36,7 +36,7 @@ use crate::util::{self, type_util};
 use super::substs_specializer::SubstsSpecializer;
 use rustc_index::IndexVec;
 
-use crate::builder::loan_builder::{PlaceLoanMap, LoanSet, LoanBuilder};
+use crate::builder::loan_builder::{LoanBuilder};
 
 pub type PathLoanMap = HashMap<Rc<Path>, Mutability>;
 pub type FuncLoanMap = HashMap<Rc<Path>, (Mutability, PathLoanMap)>;

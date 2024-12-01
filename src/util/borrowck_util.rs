@@ -13,7 +13,6 @@ use std::{cell::RefCell, hash::Hash, pin::Pin};
 
 pub struct Cache<In, Out>(RefCell<HashMap<In, Option<Pin<Box<Out>>>>>);
 use rustc_data_structures::fx::FxHashMap as HashMap;
-use log::info;
 
 impl<In, Out> Cache<In, Out>
 where
@@ -88,7 +87,7 @@ pub fn override_queries(_session: &rustc_session::Session, local: &mut Providers
 
 
 fn mir_borrowck(tcx: TyCtxt<'_>, def_id: LocalDefId) -> &BorrowCheckResult<'_> {
-    let mut body_with_facts = rustc_borrowck::consumers::get_body_with_borrowck_facts(
+    let body_with_facts = rustc_borrowck::consumers::get_body_with_borrowck_facts(
       tcx,
       def_id,
       ConsumerOptions::PoloniusInputFacts,

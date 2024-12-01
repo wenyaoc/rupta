@@ -730,6 +730,7 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
             if src_path.is_call_return() && src_type.is_ref() {
                 if let Some(func) = dst_path.get_containing_func() {
                     if self.loans.contains_key(&func) {
+                        println!("loans contains key: {:?}", func);
                         ret_ref = true;
                     }
                 }
@@ -799,20 +800,22 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
 
 
     fn check_loans(&mut self, dst_path: &P, pointee_path: &P) -> bool {
+        println!("Checking loans from {:?} to {:?}", pointee_path, dst_path);
         let dst_func = dst_path.get_containing_func().unwrap();
-        if let Some(pointee_func) = pointee_path.get_containing_func() {
-            if dst_func == pointee_func {
+        // if let Some(pointee_func) = pointee_path.get_containing_func() {
+        //     if dst_func == pointee_func {
                 let dst_func_loans = self.loans.get(&dst_func).unwrap();
                 println!("Loans: {:?}", dst_func_loans);
                 println!("Adding pts from {:?} to {:?}", pointee_path, dst_path);
                 if let Some(dst_loan_set) = dst_path.get_path_loans(dst_func_loans) {
                     println!("Loan set: {:?}", dst_loan_set);
+                    //TODO: CEHCK DEREFERENCE
                     if !pointee_path.contains_loans(&dst_loan_set) {
                         return false;
                     }
                 }
-            } 
-        }
+        //     } 
+        // }
         true
     }
 
