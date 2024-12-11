@@ -22,7 +22,7 @@ use crate::pta::*;
 use crate::pta::strategies::stack_filtering::{StackFilter, SFReachable};
 use crate::pts_set::points_to::PointsToSet;
 use crate::util::{self, chunked_queue, type_util};
-use crate::builder::fpag_builder::{FuncLoanMap, PathLoanMap};
+use crate::builder::fpag_builder::{FuncLoanMap};
 use std::collections::HashMap;
 
 /// Propagating the points-to information along the PAG edges. 

@@ -22,7 +22,7 @@ use rustc_middle::ty;
 use rustc_middle::ty::{Const, Ty, TyCtxt, TyKind, GenericArgsRef, Mutability};
 use rustc_span::source_map::Spanned;
 use rustc_target::abi::FieldIdx;
-use std::panic::{self, AssertUnwindSafe};
+// use std::panic::{self, AssertUnwindSafe};
 use crate::builder::{call_graph_builder, special_function_handler};
 use crate::graph::func_pag::FuncPAG;
 use crate::graph::pag::PAGEdgeEnum;
@@ -1680,25 +1680,25 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
         }
     }
 
-    fn get_path_for_loan_place(&mut self, place: &mir::Place<'tcx>) -> Rc<Path> {
-        if let Some(path) = self.path_cache.get(place) {
-            return path.clone();
-        }
-        let base_path: Rc<Path> =
-            Path::new_local_parameter_or_result(self.func_id, place.local.as_usize(), self.mir.arg_count);
-        println!("place: {:?}, base_path: {:?}, func_id: {:?}", place, base_path, self.func_id);
-        println!("  local_decls: {:?}", self.mir.local_decls);
-        let local_ty = self
-            .substs_specializer
-            .specialize_generic_argument_type(self.mir.local_decls[place.local].ty);
-        if place.projection.is_empty() {
+    // fn get_path_for_loan_place(&mut self, place: &mir::Place<'tcx>) -> Rc<Path> {
+    //     if let Some(path) = self.path_cache.get(place) {
+    //         return path.clone();
+    //     }
+    //     let base_path: Rc<Path> =
+    //         Path::new_local_parameter_or_result(self.func_id, place.local.as_usize(), self.mir.arg_count);
+    //     println!("place: {:?}, base_path: {:?}, func_id: {:?}", place, base_path, self.func_id);
+    //     println!("  local_decls: {:?}", self.mir.local_decls);
+    //     let local_ty = self
+    //         .substs_specializer
+    //         .specialize_generic_argument_type(self.mir.local_decls[place.local].ty);
+    //     if place.projection.is_empty() {
             
-        } else {
-            println!("  place.projection: {:?}", place.projection);
+    //     } else {
+    //         println!("  place.projection: {:?}", place.projection);
 
-        }
-        base_path
-    }
+    //     }
+    //     base_path
+    // }
 
     /// Returns a path that is qualified by the selector corresponding to the projection.elem.
     /// If projection has a base, the give base_path is first qualified with the base.

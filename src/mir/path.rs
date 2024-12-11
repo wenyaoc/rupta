@@ -849,18 +849,19 @@ impl PAGPath for Rc<CSPath> {
 
         let mut deref_paths = Vec::new();
         deref_paths.push(base.clone());
-        // println!("base: {:?}, projection: {:?}", base, projection);
+        println!("base: {:?}, projection: {:?}", base, projection);
         for proj in projection {
             match proj {
                 PathSelector::Deref => {
+                    println!("Deref");
                     for deref_path in &mut deref_paths {
                         if let Some(curr_path_node_id) = pag.values.get(deref_path) {
-                            debug!("curr_qualified_cs_path: {:?}", deref_path);
-                            debug!("curr_qualified_path_nodeid: {:?}", curr_path_node_id);
+                            println!("curr_qualified_cs_path: {:?}", deref_path);
+                            println!("curr_qualified_path_nodeid: {:?}", curr_path_node_id);
 
                             if let Some(pointees) = pt_data.get_propa_pts(*curr_path_node_id) {
                                 for pointee in pointees {
-                                    debug!("Pointee: {:?}",  pag.get_node(pointee).path());
+                                    println!("Pointee: {:?}",  pag.get_node(pointee).path());
                                     *deref_path = pag.get_node(pointee).path().clone();
                                 }
                             }
