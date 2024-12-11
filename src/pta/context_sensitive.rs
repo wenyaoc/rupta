@@ -139,8 +139,8 @@ impl<'pta, 'tcx, 'compilation, S: ContextStrategy> ContextSensitivePTA<'pta, 'tc
     }
 
     pub fn get_loans(&mut self, func: CSFuncId) {
-        
         let fpag = unsafe { &*(self.pag.func_pags.get(&func.func_id).unwrap() as *const FuncPAG) };
+        // fpag.build_func_loans();
         let loans = &fpag.func_loans;
         self.loans.insert(func, loans.clone());
     }

@@ -752,7 +752,7 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
                     }
 
                     if ret_ref {
-                        if !self.check_loans(&dst_path, &pointee_path) {
+                        if !self.contains_in_loans(&dst_path, &pointee_path) {
                             continue;
                         }
                     } 
@@ -799,25 +799,33 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
     }
 
 
-    fn check_loans(&mut self, dst_path: &P, pointee_path: &P) -> bool {
-        println!("Checking loans from {:?} to {:?}", pointee_path, dst_path);
+    fn contains_in_loans(&mut self, dst_path: &P, pointee_path: &P) -> bool {
+        println!("Checking loans: adding pts {:?} to {:?}", pointee_path, dst_path);
         let dst_func = dst_path.get_containing_func().unwrap();
-        // if let Some(pointee_func) = pointee_path.get_containing_func() {
-        //     if dst_func == pointee_func {
-                let dst_func_loans = self.loans.get(&dst_func).unwrap();
-                println!("Loans: {:?}", dst_func_loans);
-                println!("Adding pts from {:?} to {:?}", pointee_path, dst_path);
-                if let Some(dst_loan_set) = dst_path.get_path_loans(dst_func_loans) {
-                    println!("Loan set: {:?}", dst_loan_set);
-                    //TODO: CEHCK DEREFERENCE
-                    if !pointee_path.contains_loans(&dst_loan_set) {
-                        return false;
-                    }
+        if let Some(pointee_func) = pointee_path.get_containing_func() {
+            println!("  Pointee func: {:?}", pointee_func);
+            let dst_func_loans = self.loans.get(&dst_func).unwrap();
+            println!("  Loans: {:?}", dst_func_loans);
+            println!("  Adding pts from {:?} to {:?}", pointee_path, dst_path);
+            if let Some(dst_loan_set) = dst_path.get_path_loans(dst_func_loans) {
+                println!("  Loan set: {:?}", dst_loan_set);
+                //TODO: CEHCK DEREFERENCE
+                if !pointee_path.contains_in_loan_set(dst_path, &dst_loan_set, self.pag, self.pt_data) {
+                    return false;
                 }
-        //     } 
-        // }
+                // if !pointee_path.contains_in_loan_set(&dst_loan_set) {
+                //     for (dst_loan_path, _) in dst_loan_set.iter() {
+                //         if dst_loan_path.is_qualified_path() {
+                //             println!("  Qualified path: {:?}", dst_loan_path);
+                //         }
+                //     }
+                // }
+            }
+        }
         true
     }
+
+
 
     /// Adds cast edges between src and dst, src --cast--> dst, and dst --cast-->src.
     /// If any of the cast edges is newly added to the graph, propagate along this edge

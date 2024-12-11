@@ -24,6 +24,8 @@ use crate::util::bit_vec::Idx;
 use crate::util::chunked_queue::{self, ChunkedQueue};
 // use crate::builder::loan_builder::{FuncLoanMap, LoanSet};
 use crate::graph::pag::fpag_builder::{FuncLoanMap, PathLoanMap};
+
+use crate::pta::DiffPTDataTy;
 // Unique identifiers for graph node and edges.
 pub type PAGNodeId = NodeIndex<DefaultIx>;
 pub type PAGEdgeId = EdgeIndex<DefaultIx>;
@@ -61,8 +63,10 @@ pub trait PAGPath: Clone + PartialEq + Eq + Hash + Debug {
     fn flatten_fields<'tcx>(self, acx: &mut AnalysisContext<'tcx, '_>) -> Vec<(usize, Self, Ty<'tcx>)>;
     fn get_containing_func(&self) -> Option<Self::FuncTy>;
     fn is_call_return(&self) -> bool;
+    fn is_qualified_path(&self) -> bool;
     fn get_path_loans<'tcx>(&self, loans: &'tcx FuncLoanMap) -> Option<&'tcx PathLoanMap>;
-    fn contains_loans<'tcx>(&self, loans: &'tcx PathLoanMap) -> bool;
+    fn contains_in_loan_set<'pta, 'tcx>(&self, dst_path: &Self, loans: &'tcx PathLoanMap, pag: &'pta PAG<Self>, pt_data: &DiffPTDataTy) -> bool;
+    fn get_deref_path(&self, base: &Self, projection: &ProjectionElems, pag: &PAG<Self>, pt_data: &DiffPTDataTy) -> Option<Vec<Self>>;
 }
 
 pub struct PAGNode<P: PAGPath> {
@@ -498,6 +502,10 @@ impl<P: PAGPath> PAG<P> {
         // println!("region_inference_context: {:?}", body_with_facts.region_inference_context.var_infos);
         let mut builder = fpag_builder::FuncPAGBuilder::new(acx, func_id, &mir, &mut fpag);
         builder.build();
+        
+        if let Some(_) = def_id.as_local() {
+            builder.build_loans();
+        }
 
         // Build function pags for static variables encountered in this function.
         let mut static_funcs = HashSet::new();

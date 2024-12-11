@@ -15,7 +15,8 @@ use crate::graph::pag::PAGPath;
 use crate::mir::context::ContextId;
 use crate::mir::function::FuncId;
 use crate::util::type_util;
-
+use crate::graph::pag::PAG;
+use crate::pta::DiffPTDataTy;
 use super::function::CSFuncId;
 use super::analysis_context::AnalysisContext;
 // use crate::builder::loan_builder::{FuncLoanMap, LoanSet};
@@ -67,6 +68,7 @@ impl CSPath {
     pub fn is_call_return(&self) -> bool {
         self.path.is_call_return()
     }
+    
 }
 
 /// Different kinds of `Path` used in our analysis.
@@ -665,6 +667,10 @@ impl PAGPath for Rc<Path> {
         }
     }
 
+    fn is_qualified_path(&self) -> bool {
+        matches!(self.value, PathEnum::QualifiedPath { .. })
+    }
+
     fn get_path_loans<'tcx>(&self, loans: &'tcx FuncLoanMap) -> Option<&'tcx PathLoanMap> {
         if let Some((_, loan_set)) = loans.get(self) {
             Some(loan_set)
@@ -673,8 +679,12 @@ impl PAGPath for Rc<Path> {
         }
     }
 
-    fn contains_loans<'tcx>(&self, loans: &'tcx PathLoanMap) -> bool {
+    fn contains_in_loan_set<'pta, 'tcx>(&self, dst_path: &Self, loans: &'tcx PathLoanMap, pag: &'pta PAG<Self>, pt_data: &DiffPTDataTy) -> bool {
         loans.contains_key(self)
+    }
+
+    fn get_deref_path(&self, base: &Self, projection: &ProjectionElems, pag: &PAG<Self>, pt_data: &DiffPTDataTy) -> Option<Vec<Self>> {
+        None
     }
 
 }
@@ -802,15 +812,89 @@ impl PAGPath for Rc<CSPath> {
         }
     }
 
+    fn is_qualified_path(&self) -> bool {
+        matches!(self.path.value, PathEnum::QualifiedPath { .. })
+    }
+
     fn get_path_loans<'tcx>(&self, loans: &'tcx FuncLoanMap) -> Option<&'tcx PathLoanMap> {
         if let Some((_, loan_set)) = loans.get(&self.path) {
             Some(loan_set)
         } else {
             None
         }
+        
     }
 
-    fn contains_loans<'tcx>(&self, loans: &'tcx PathLoanMap) -> bool {
-        loans.contains_key(&self.path)
+    fn contains_in_loan_set<'pta, 'tcx>(&self, dst_path: &Self, loans: &'tcx PathLoanMap, pag: &'pta PAG<Self>, pt_data: &DiffPTDataTy) -> bool {
+        if loans.contains_key(&self.path) {
+            return true;
+        } 
+        for (loan_path, _) in loans.iter() {
+            match &loan_path.value {
+                PathEnum::QualifiedPath { base, projection} => {
+                    let base_cs_path = CSPath::new_cs_path(dst_path.cid, base.clone());
+                    if let Some(deref_paths) = self.get_deref_path(&base_cs_path, projection, pag, pt_data) {
+                        if deref_paths.contains(&self) {
+                            return true;
+                        }
+                    }
+                }
+                _ => continue,
+            }
+        }
+        false
+    }
+
+    fn get_deref_path(&self, base: &Self, projection: &ProjectionElems, pag: &PAG<Self>, pt_data: &DiffPTDataTy) -> Option<Vec<Self>> {
+
+        let mut deref_paths = Vec::new();
+        deref_paths.push(base.clone());
+        // println!("base: {:?}, projection: {:?}", base, projection);
+        for proj in projection {
+            match proj {
+                PathSelector::Deref => {
+                    for deref_path in &mut deref_paths {
+                        if let Some(curr_path_node_id) = pag.values.get(deref_path) {
+                            debug!("curr_qualified_cs_path: {:?}", deref_path);
+                            debug!("curr_qualified_path_nodeid: {:?}", curr_path_node_id);
+
+                            if let Some(pointees) = pt_data.get_propa_pts(*curr_path_node_id) {
+                                for pointee in pointees {
+                                    debug!("Pointee: {:?}",  pag.get_node(pointee).path());
+                                    *deref_path = pag.get_node(pointee).path().clone();
+                                }
+                            }
+                        }
+                    }
+
+                }
+                _ => {
+                    println!(" (before) deref_paths: {:?}", deref_paths);
+                    for deref_path in &mut deref_paths {
+                        match deref_path.value() {
+                            PathEnum::QualifiedPath { base: deref_base, projection: deref_projection } => {
+                                let mut new_projection = deref_projection.clone();
+                                new_projection.push(proj.clone());
+                                *deref_path = CSPath::new_cs_path(deref_path.cid, Path::new_qualified(deref_base.clone(), new_projection));
+                            }
+                            _ => {
+                                *deref_path = CSPath::new_cs_path(deref_path.cid, Path::new_qualified(deref_path.path.clone(), vec![proj.clone()]));
+                            }
+                        }
+                    }
+                    println!(" (after) deref_paths: {:?}", deref_paths);
+                }
+            }
+        }
+        
+        if deref_paths.is_empty() {
+            None
+        } else {
+            Some(deref_paths)
+        }
     }
 }
+
+
+
+    

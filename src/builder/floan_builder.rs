@@ -62,14 +62,14 @@ impl<'tcx> Visitor<'tcx> for GatherBorrows<'tcx> {
   }
 
 
-pub struct LoanBuilder<'tcx> {
+pub struct FuncLoanBuilder<'tcx> {
     tcx: TyCtxt<'tcx>,
     def_id: DefId,
 }
 
 
 
-impl<'tcx> LoanBuilder<'tcx> {
+impl<'tcx> FuncLoanBuilder<'tcx> {
     pub fn new(tcx: TyCtxt<'tcx>, def_id: DefId) -> Self {
         Self { tcx, def_id }
     }
@@ -78,7 +78,9 @@ impl<'tcx> LoanBuilder<'tcx> {
         let tcx = self.tcx;
         let def_id = self.def_id;
         let local_def_id = def_id.expect_local();
+        // println!("local_def_id: {local_def_id:#?}", local_def_id = local_def_id);
         let body_with_facts = borrowck_util::get_bodies(tcx, local_def_id);
+        // println!("body_with_facts: {body_with_facts:#?}", body_with_facts = body_with_facts.body);
         let static_region = RegionVid::from_usize(0);
         // let start = Instant::now();
         // println!("func_id: {:?}", def_id);
@@ -289,16 +291,21 @@ impl<'tcx> LoanBuilder<'tcx> {
             }
         }
         }
+        // println!("Final contains: {contains:#?}", contains = contains);
         // elapsed("fixpoint", start);
         let mut func_loans: PlaceLoanMap<'tcx> = HashMap::default();
         for (region, contain) in contains {
+            if contain.is_empty() {
+                continue;
+            }
             if let Some(region_var) = hashmap.get(&region) {
+                // println!("region={region:?}, region_var={region_var:#?}", region = region, region_var = region_var);
                 for (path, mutability) in region_var{
-                    // println!("path={path:?}, mutability={mutability:?}, contain={contain:#?}", path = path, mutability = mutability, contain = contain);
                     func_loans.insert(*path, (*mutability, contain.clone()));
                 }
             }
         }
+        // println!("func_loans: {func_loans:#?}", func_loans = func_loans);
         func_loans 
     
     }

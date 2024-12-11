@@ -120,7 +120,7 @@ impl<'pta, 'tcx, 'compilation> AndersenPTA<'pta, 'tcx, 'compilation> {
     //     // let mut loans = FuncLoanMap::default();
     //     if let Some(_local_def_id) = def_id.as_local() {
     //         // Self::compute_loans(acx.tcx, def_id);
-    //         let loan_builder = LoanBuilder::new(self.acx.tcx, def_id);
+    //         let loan_builder = FuncLoanBuilder::new(self.acx.tcx, def_id);
     //         let loans = loan_builder.compute_loans();
     //         // self.loans.insert(func_id, loans.clone());
     //     }

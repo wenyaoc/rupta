@@ -36,7 +36,7 @@ use crate::util::{self, type_util};
 use super::substs_specializer::SubstsSpecializer;
 use rustc_index::IndexVec;
 
-use crate::builder::loan_builder::{LoanBuilder};
+use crate::builder::floan_builder::{FuncLoanBuilder};
 
 pub type PathLoanMap = HashMap<Rc<Path>, Mutability>;
 pub type FuncLoanMap = HashMap<Rc<Path>, (Mutability, PathLoanMap)>;
@@ -149,38 +149,45 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
             self.acx.set_path_rustc_type(static_variable.clone(), ret_type);
             self.add_internal_edges(ret_path, ret_type, static_variable, ret_type);
         }
+    }
 
+    pub fn build_loans(&mut self) {
+        println!("Building loans for {:?}, {:?}", self.func_id, self.def_id());
         let def_id = self.def_id();
-        if let Some(_local_def_id) = def_id.as_local() {
-            let loan_builder = LoanBuilder::new(self.acx.tcx, def_id);
-            let result = panic::catch_unwind(AssertUnwindSafe(|| { loan_builder.compute_loans()}));
-            match result {
-                Ok(loans) => {
-                    // println!("loans: {:?}", loans);
-                    let mut func_loans = FuncLoanMap::new();
-                    for (func_places, loans) in loans {
-                        // let func_path = self.get_path_for_place(&func_places);
-                        if let Some(func_path) = self.path_cache.get(&func_places) {
-                            let (mutability, loan_set) = loans;
-                            let mut path_loan_set = PathLoanMap::new();
-                            for (loan_place, loan_mutability) in loan_set {
-                                if let Some(loan_path) = self.path_cache.get(&loan_place) {
-                                    path_loan_set.insert(loan_path.clone(), loan_mutability);
-                                }
-                            }
-                            func_loans.insert(func_path.clone(), (mutability, path_loan_set));
-                        }
-                        
+        if let Some(local_def_id) = def_id.as_local() {
+            // Figure out what primary body this item has.
+            // https://doc.rust-lang.org/stable/nightly-rustc/src/rustc_hir_typeck/lib.rs.html#2-509
+            let id = self.acx.tcx.local_def_id_to_hir_id(local_def_id);
+            let node = self.acx.tcx.hir_node(id);
+            if let Some(_) = node.body_id() {
+                // Calculate the function's loans
+                let loan_builder = FuncLoanBuilder::new(self.acx.tcx, def_id);
+                let loans = loan_builder.compute_loans();
+                let mut func_loans = FuncLoanMap::new();
+                // println!("Loans: {:?}", loans);
+                for (func_places, loans) in loans {
+                    let func_path = self.get_path_for_place(&func_places);
+                    let (mutability, loan_set) = loans;
+                    let mut path_loan_set = PathLoanMap::new();
+                    for (loan_place, loan_mutability) in loan_set {
+                        let loan_path = self.get_path_for_place(&loan_place);
+                        // println!("Func place: {:?}, path: {:?}, ty: {:?}", loan_place, loan_path, ty);
+                        // if let Some(loan_path) = self.path_cache.get(&loan_place) {
+                        //     path_loan_set.insert(loan_path.clone(), loan_mutability);
+                        // }
+                        path_loan_set.insert(loan_path.clone(), loan_mutability);
                     }
-                    self.fpag.func_loans = func_loans;
-                    println!("func_loans: {:?}", self.fpag.func_loans);
-                }
-                Err(_) => {
-                    println!("Loan computation failed for function: {:?}", self.func_id);
-                }
-            }
-        }
+                    // func_loans.insert(func_path.clone(), (mutability, path_loan_set));
+                    func_loans.insert(func_path.clone(), (mutability, path_loan_set));
 
+                    
+                }
+                println!("Func loans: {:?}", func_loans);
+                self.fpag.func_loans = func_loans;
+            }
+            
+            
+        }
     }
 
     pub fn visit_body(&mut self) {
@@ -1656,6 +1663,8 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
         }
         let base_path: Rc<Path> =
             Path::new_local_parameter_or_result(self.func_id, place.local.as_usize(), self.mir.arg_count);
+        // println!("place: {:?}, base_path: {:?}, func_id: {:?}", place, base_path, self.func_id);
+        // println!("  local_decls: {:?}", self.mir.local_decls);
         let local_ty = self
             .substs_specializer
             .specialize_generic_argument_type(self.mir.local_decls[place.local].ty);
@@ -1669,6 +1678,26 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
             self.path_cache.insert(*place, path.clone());
             path
         }
+    }
+
+    fn get_path_for_loan_place(&mut self, place: &mir::Place<'tcx>) -> Rc<Path> {
+        if let Some(path) = self.path_cache.get(place) {
+            return path.clone();
+        }
+        let base_path: Rc<Path> =
+            Path::new_local_parameter_or_result(self.func_id, place.local.as_usize(), self.mir.arg_count);
+        println!("place: {:?}, base_path: {:?}, func_id: {:?}", place, base_path, self.func_id);
+        println!("  local_decls: {:?}", self.mir.local_decls);
+        let local_ty = self
+            .substs_specializer
+            .specialize_generic_argument_type(self.mir.local_decls[place.local].ty);
+        if place.projection.is_empty() {
+            
+        } else {
+            println!("  place.projection: {:?}", place.projection);
+
+        }
+        base_path
     }
 
     /// Returns a path that is qualified by the selector corresponding to the projection.elem.
