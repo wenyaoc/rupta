@@ -212,7 +212,7 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
             }
           }
         }
-        // println!("Initial contains: {contains:#?}");
+        println!("Initial contains: {contains:#?}");
         // println!("Definite: {definite:#?}");
         // println!("Subset: {subset:#?}", subset = subset);
     

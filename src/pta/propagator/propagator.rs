@@ -752,7 +752,9 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
                     }
 
                     if ret_ref {
+                        // println!("Checking loans: adding pts {:?} to {:?}", pointee_path, dst_path);
                         if !self.contains_in_loans(&dst_path, &pointee_path) {
+                            println!("Not in loans: adding pts {:?} to {:?}", pointee_path, dst_path);
                             continue;
                         }
                     } 
@@ -800,15 +802,16 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
 
 
     fn contains_in_loans(&mut self, dst_path: &P, pointee_path: &P) -> bool {
-        println!("Checking loans: adding pts {:?} to {:?}", pointee_path, dst_path);
+        // println!("Checking loans: adding pts {:?} to {:?}", pointee_path, dst_path);
         let dst_func = dst_path.get_containing_func().unwrap();
         if let Some(pointee_func) = pointee_path.get_containing_func() {
-            println!("  Pointee func: {:?}", pointee_func);
+            // println!("  Pointee func: {:?}", pointee_func);
             let dst_func_loans = self.loans.get(&dst_func).unwrap();
-            println!("  Loans: {:?}", dst_func_loans);
-            println!("  Adding pts from {:?} to {:?}", pointee_path, dst_path);
+            // println!("  Loans: {:?}", dst_func_loans);
+            // println!("  Adding pts from {:?} to {:?}", pointee_path, dst_path);
             if let Some(dst_loan_set) = dst_path.get_path_loans(dst_func_loans) {
-                println!("  Loan set: {:?}", dst_loan_set);
+                // println!("  Loan set: {:?}", dst_loan_set);
+                println!("Checking loans: adding pts {:?} to {:?}", pointee_path, dst_path);
                 //TODO: CEHCK DEREFERENCE
                 if !pointee_path.contains_in_loan_set(dst_path, &dst_loan_set, self.pag, self.pt_data) {
                     return false;

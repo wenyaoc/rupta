@@ -35,8 +35,8 @@ pub fn dump_results<P: PAGPath, F, S>(
     // dump points-to results
     if let Some(pts_output) = &acx.analysis_options.pts_output {
         info!("Dumping points-to results...");
-        dump_ci_pts(acx, pt_data, pag, pts_output);
-        // dump_pts(pt_data, pag, pts_output);
+        // dump_ci_pts(acx, pt_data, pag, pts_output);
+        dump_pts(pt_data, pag, pts_output);
     }
 
     // dump call graph
