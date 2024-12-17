@@ -95,14 +95,25 @@ impl<'pta, 'tcx, 'compilation, S: ContextStrategy> ContextSensitiveStat<'pta, 't
     }
 
     pub fn dump_pts_stat<W: Write>(&self, stat_writer: &mut BufWriter<W>) {
+        use crate::graph::pag::PAGPath;
         let cs_pts_map = &self.pta.pt_data.propa_pts_map;
         let mut ci_pts_map: HashMap<Rc<Path>, HashSet<Rc<Path>>> = HashMap::new();
         let num_cs_pointers = cs_pts_map.len();
         let mut num_cs_pts_relations = 0;
+        let mut num_cs_crate_local_pointers = 0;
         for (ptr_id, pts) in cs_pts_map {
             num_cs_pts_relations += pts.count();
-
+            // Count the number of crate-local pointers;
             let cs_ptr_path = self.pta.pag.node_path(*ptr_id);
+            if let Some(cs_func_id) = cs_ptr_path.get_containing_func() {
+                let func_id = cs_func_id.func_id;
+                let def_id = self.pta.acx.get_function_reference(func_id);
+                // println!("dump_pts_stat_def_id: {:?}", def_id);
+                if let Some(local_def_id) = def_id.def_id.as_local()  {
+                    num_cs_crate_local_pointers += 1;
+                }
+            }
+
             let ci_ptr_path = cs_ptr_path.path.clone();
             let ci_pts = ci_pts_map.entry(ci_ptr_path).or_default();
             for pointee in pts {
@@ -127,12 +138,14 @@ impl<'pta, 'tcx, 'compilation, S: ContextStrategy> ContextSensitiveStat<'pta, 't
             .write_all(format!("#Pointers: {}\n", num_cs_pointers).as_bytes())
             .expect("Unable to write data");
         stat_writer
+            .write_all(format!("#Crate-local pointers: {}\n", num_cs_crate_local_pointers).as_bytes())
+            .expect("Unable to write data");
+        stat_writer
             .write_all(format!("#Points-to relations: {}\n", num_cs_pts_relations).as_bytes())
             .expect("Unable to write data");
         stat_writer
             .write_all(format!("#Avg points-to size: {}\n", avg_cs_pts).as_bytes())
             .expect("Unable to write data");
-
         stat_writer
             .write_all("CI Points-to Statistics: \n".as_bytes())
             .expect("Unable to write data");

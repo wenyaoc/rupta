@@ -727,7 +727,7 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
                 return;
             }
 
-            if src_path.is_call_return() && src_type.is_ref() {
+            if src_path.is_call_return() && src_type.is_ref() && self.acx.analysis_options.compute_loans {
                 if let Some(func) = dst_path.get_containing_func() {
                     if self.loans.contains_key(&func) {
                         println!("loans contains key: {:?}", func);
