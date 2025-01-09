@@ -391,6 +391,8 @@ impl<'pta, 'tcx, 'compilation, S: ContextStrategy> PointerAnalysis<'tcx, 'compil
 
     /// Solve the worklist problem using Propagator.
     fn propagate(&mut self) {
+        let path = std::path::Path::new("/home/wenyao/stack-filtering/hello/pag_init.dot");
+        self.pag.to_dot(path);
         let mut iter_proc_edge_iter = self.inter_proc_edges_queue.iter_copied();
         // Solve until no new call relationship is found.
         loop {
@@ -417,6 +419,9 @@ impl<'pta, 'tcx, 'compilation, S: ContextStrategy> PointerAnalysis<'tcx, 'compil
                 self.process_new_call_instances(&new_call_instances);
             }
         }
+
+        let path = std::path::Path::new("/home/wenyao/stack-filtering/hello/pag_final.dot");
+        self.pag.to_dot(path);
     }
 
     /// Finalize the analysis.

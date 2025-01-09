@@ -220,7 +220,11 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
             .rows()
             .flat_map(|r1| subset.iter(r1).map(move |r2| (r1, r2)))
             .collect::<Vec<_>>();
+
+        println!("num_regions: {:?}", num_regions);
+        println!("edge_pairs: {:?}", edge_pairs);
         let subset_graph = VecGraph::new(num_regions, edge_pairs);
+
         let subset_sccs = Sccs::<RegionVid, RegionSccIndex>::new(&subset_graph);
         let mut scc_to_regions =
         IndexVec::from_elem_n(HybridBitSet::new_empty(num_regions), subset_sccs.num_sccs());
