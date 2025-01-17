@@ -79,6 +79,7 @@ impl<'a, 'rta, 'tcx, 'compilation> BodyVisitor<'a, 'rta, 'tcx, 'compilation> {
 
         while location.statement_index < terminator_index {
             self.visit_statement(location, &statements[location.statement_index]);
+            // println!("statement: {:?}", statements[location.statement_index]);
             location.statement_index += 1;
         }
 
@@ -86,7 +87,7 @@ impl<'a, 'rta, 'tcx, 'compilation> BodyVisitor<'a, 'rta, 'tcx, 'compilation> {
             ref source_info,
             ref kind,
         }) = *terminator
-        {
+        {   
             self.visit_terminator(location, kind, *source_info);
         }
 

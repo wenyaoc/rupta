@@ -80,7 +80,9 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
         let local_def_id = def_id.expect_local();
         // println!("local_def_id: {local_def_id:#?}", local_def_id = local_def_id);
         let body_with_facts = borrowck_util::get_bodies(tcx, local_def_id);
-        // println!("body_with_facts: {body_with_facts:#?}", body_with_facts = body_with_facts.body);
+        // println!("body_with_facts: {body_with_facts:#?}", body_with_facts = body_with_facts.region_inference_context.regions());
+        let universal_region = &body_with_facts.input_facts.as_ref().unwrap().universal_region;
+        println!("universal_region: {:?}", universal_region);
         let static_region = RegionVid::from_usize(0);
         // let start = Instant::now();
         // println!("func_id: {:?}", def_id);
@@ -106,7 +108,7 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
     
         // let all_pointers_hash = all_pointers.iter().map(|(r, _)| *r).collect();
     
-        // println!("all_pointers: {:?}", all_pointers);
+        println!("all_pointers: {:?}", all_pointers);
         let max_region = all_pointers
         .iter()
         .map(|(region, _)| *region)
@@ -115,12 +117,12 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
         .max()
         .unwrap_or(static_region);
     
-        let hashmap: HashMap<_, _> = all_pointers.clone()
+        let pointers_map: HashMap<_, _> = all_pointers.clone()
         .into_iter()
-        .filter(|(key, _)| *key != UNKNOWN_REGION)
+        .filter(|(key, _)| *key != UNKNOWN_REGION && *key != RegionVid::from_usize(0))
         .collect();
     
-        // println!("hashmap: {:?}", hashmap);
+        println!("pointers_map: {:?}", pointers_map);
     
         let num_regions = max_region.as_usize() + 1;
         let all_regions = (0 .. num_regions).map(RegionVid::from_usize);
@@ -155,7 +157,7 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
         gather_borrows.visit_body(&body_with_facts.body);
         // println!("gather_borrows={gather_borrows:#?}", gather_borrows = gather_borrows.borrows);
         for (region, kind, place) in gather_borrows.borrows {
-            // println!("gather_borrows.borrows region={region:?}, kind={kind:?}, place={place:?}");
+            println!("gather_borrows.borrows region={region:?}, kind={kind:?}, place={place:?}");
             if place.is_direct(&body_with_facts.body) {
                 // println!("place is direct");
                 contains
@@ -214,7 +216,7 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
         }
         println!("Initial contains: {contains:#?}");
         // println!("Definite: {definite:#?}");
-        // println!("Subset: {subset:#?}", subset = subset);
+        println!("Subset: {subset:#?}", subset = subset);
     
         let edge_pairs = subset
             .rows()
@@ -302,10 +304,19 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
             if contain.is_empty() {
                 continue;
             }
-            if let Some(region_var) = hashmap.get(&region) {
+            if let Some(region_var) = pointers_map.get(&region) {
                 // println!("region={region:?}, region_var={region_var:#?}", region = region, region_var = region_var);
-                for (path, mutability) in region_var{
-                    func_loans.insert(*path, (*mutability, contain.clone()));
+                for (place, mutability) in region_var{
+                    func_loans.insert(*place, (*mutability, contain.clone()));
+                }
+            }
+        }
+
+        for (_, path_vec) in pointers_map {
+            for (place, _) in path_vec {
+                if !func_loans.contains_key(&place) {
+                    let place_ty = place.ty(body_with_facts.body.local_decls(), tcx).ty;
+                    println!("func_loans does not contain place: {:?}, path_ty: {:?}, ref_mutability: {:?}", place, place_ty, place_ty.ref_mutability());
                 }
             }
         }
