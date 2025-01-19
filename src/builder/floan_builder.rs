@@ -81,9 +81,10 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
         // println!("local_def_id: {local_def_id:#?}", local_def_id = local_def_id);
         let body_with_facts = borrowck_util::get_bodies(tcx, local_def_id);
         // println!("body_with_facts: {body_with_facts:#?}", body_with_facts = body_with_facts.region_inference_context.regions());
-        let universal_region = &body_with_facts.input_facts.as_ref().unwrap().universal_region;
-        println!("universal_region: {:?}", universal_region);
         let static_region = RegionVid::from_usize(0);
+        let universal_region = &body_with_facts.input_facts.as_ref().unwrap().universal_region;
+        println!("universal_region: {:?}", &universal_region[1..]);
+        
         // let start = Instant::now();
         // println!("func_id: {:?}", def_id);
         // println!("input_facts: {:?}", body_with_facts.input_facts);
@@ -220,7 +221,9 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
     
         let edge_pairs = subset
             .rows()
-            .flat_map(|r1| subset.iter(r1).map(move |r2| (r1, r2)))
+            .flat_map(|r1| subset.iter(r1)
+            .filter(move |r2| {!&universal_region[1..].contains(&r1) && !&universal_region[1..].contains(&r2)})
+            .map(move |r2| (r1, r2)))
             .collect::<Vec<_>>();
 
         println!("num_regions: {:?}", num_regions);
