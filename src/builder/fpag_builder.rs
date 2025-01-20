@@ -209,28 +209,33 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
 
         while location.statement_index < terminator_index {
             self.visit_statement(location, &statements[location.statement_index]);
-            // let source_scopes = &self.mir.source_scopes[statements[location.statement_index].source_info.scope].local_data;
-            // println!("Location: {:?}, source_scopes: {:?}", location, source_scopes);
-            // use rustc_middle::mir::ClearCrossCrate;
-            // match source_scopes {
-            //     ClearCrossCrate::Set(data) => {
-            //         match data.safety {
-            //             rustc_middle::mir::Safety::Safe => {
-            //                 println!("Safety::Safe");
-            //             }
-            //             rustc_middle::mir::Safety::BuiltinUnsafe => {
-            //                 println!("Safety::BuiltinUnsafe");
-            //             }
-            //             rustc_middle::mir::Safety::FnUnsafe => {
-            //                 println!("Safety::FnUnsafe");
-            //             }
-            //             rustc_middle::mir::Safety::ExplicitUnsafe(_) => {
-            //                 println!("Safety::ExplicitUnsafe");
-            //             }
-            //         }
-            //     }
-            //     _ => {}
-            // }
+            let source_scopes = &self.mir.source_scopes[statements[location.statement_index].source_info.scope].local_data;
+            println!("Location: {:?}, source_scopes: {:?}", location, source_scopes);
+            use rustc_middle::mir::ClearCrossCrate;
+            match source_scopes {
+                ClearCrossCrate::Set(data) => {
+                    match data.safety {
+                        rustc_middle::mir::Safety::Safe => {
+                            println!("Safe");
+                        }
+                        rustc_middle::mir::Safety::BuiltinUnsafe => {
+                            println!("Safety::BuiltinUnsafe");
+                        }
+                        rustc_middle::mir::Safety::FnUnsafe => {
+                            println!("Safety::FnUnsafe");
+                        }
+                        rustc_middle::mir::Safety::ExplicitUnsafe(_) => {
+                            println!("Safety::ExplicitUnsafe");
+                            println!("location: {:?}, statement: {:?}", location, statements[location.statement_index]);
+                        }
+                        // _ => {
+                        //     println!("Unsafe");
+                        //     println!("location: {:?}, statement: {:?}", location, statements[location.statement_index]);    
+                        // }
+                    }
+                }
+                _ => {}
+            }
            
             location.statement_index += 1;
         }
