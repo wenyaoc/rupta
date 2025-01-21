@@ -833,9 +833,9 @@ impl PAGPath for Rc<CSPath> {
             match &loan_path.value {
                 PathEnum::QualifiedPath { base, projection} => {
                     let base_cs_path = CSPath::new_cs_path(dst_path.cid, base.clone());
-                    println!("base_cs_path: {:?}, projection: {:?}", base_cs_path, projection);
+                    // println!("base_cs_path: {:?}, projection: {:?}", base_cs_path, projection);
                     if let Some(deref_paths) = self.get_deref_path(&base_cs_path, projection, pag, pt_data) {
-                        println!("deref_paths: {:?}", deref_paths);
+                        // println!("deref_paths: {:?}", deref_paths);
                         if deref_paths.contains(&self) {
                             return true;
                         }
@@ -856,16 +856,16 @@ impl PAGPath for Rc<CSPath> {
             match proj {
                 PathSelector::Deref => {
                     // println!("Deref");
-                    println!(" (PathSelector::Deref before) deref_paths: {:?}", deref_paths);
+                    // println!(" (PathSelector::Deref before) deref_paths: {:?}", deref_paths);
                     let mut new_deref_paths = Vec::new();
                     for deref_path in &mut deref_paths {
                         if let Some(curr_path_node_id) = pag.values.get(deref_path) {
                             // println!("curr_qualified_cs_path: {:?}", deref_path);
-                            println!("  curr_qualified_path_nodeid: {:?}", curr_path_node_id);
+                            // println!("  curr_qualified_path_nodeid: {:?}", curr_path_node_id);
 
                             if let Some(pointees) = pt_data.get_propa_pts(*curr_path_node_id) {
                                 for pointee in pointees {
-                                    println!("  Pointee: {:?}",  pag.get_node(pointee).path());
+                                    // println!("  Pointee: {:?}",  pag.get_node(pointee).path());
                                     // *deref_path = pag.get_node(pointee).path().clone();
                                     new_deref_paths.push(pag.get_node(pointee).path().clone());
                                 }
@@ -873,10 +873,10 @@ impl PAGPath for Rc<CSPath> {
                         }
                     }
                     deref_paths = new_deref_paths;
-                    println!(" (PathSelector::Deref after) deref_paths: {:?}", deref_paths);
+                    // println!(" (PathSelector::Deref after) deref_paths: {:?}", deref_paths);
                 }
                 _ => {
-                    println!(" (_: before) deref_paths: {:?}", deref_paths);
+                    // println!(" (_: before) deref_paths: {:?}", deref_paths);
                     for deref_path in &mut deref_paths {
                         match deref_path.value() {
                             PathEnum::QualifiedPath { base: deref_base, projection: deref_projection } => {
@@ -889,7 +889,7 @@ impl PAGPath for Rc<CSPath> {
                             }
                         }
                     }
-                    println!(" (_: after) deref_paths: {:?}", deref_paths);
+                    // println!(" (_: after) deref_paths: {:?}", deref_paths);
                 }
             }
         }

@@ -153,7 +153,7 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
 
     pub fn build_loans(&mut self) {
         if self.acx.analysis_options.compute_loans {
-            println!("Building loans for {:?}, {:?}", self.func_id, self.def_id());
+            // println!("Building loans for {:?}, {:?}", self.func_id, self.def_id());
             let def_id = self.def_id();
             if let Some(local_def_id) = def_id.as_local() {
                 // Figure out what primary body this item has.
@@ -183,7 +183,7 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
 
                         
                     }
-                    println!("Func loans: {:?}", func_loans);
+                    // println!("Func loans: {:?}", func_loans);
                     self.fpag.func_loans = func_loans;
                 }              
             }
@@ -210,32 +210,32 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
         while location.statement_index < terminator_index {
             self.visit_statement(location, &statements[location.statement_index]);
             let source_scopes = &self.mir.source_scopes[statements[location.statement_index].source_info.scope].local_data;
-            println!("Location: {:?}, source_scopes: {:?}", location, source_scopes);
-            use rustc_middle::mir::ClearCrossCrate;
-            match source_scopes {
-                ClearCrossCrate::Set(data) => {
-                    match data.safety {
-                        rustc_middle::mir::Safety::Safe => {
-                            println!("Safe");
-                        }
-                        rustc_middle::mir::Safety::BuiltinUnsafe => {
-                            println!("Safety::BuiltinUnsafe");
-                        }
-                        rustc_middle::mir::Safety::FnUnsafe => {
-                            println!("Safety::FnUnsafe");
-                        }
-                        rustc_middle::mir::Safety::ExplicitUnsafe(_) => {
-                            println!("Safety::ExplicitUnsafe");
-                            println!("location: {:?}, statement: {:?}", location, statements[location.statement_index]);
-                        }
-                        // _ => {
-                        //     println!("Unsafe");
-                        //     println!("location: {:?}, statement: {:?}", location, statements[location.statement_index]);    
-                        // }
-                    }
-                }
-                _ => {}
-            }
+            // println!("Location: {:?}, source_scopes: {:?}", location, source_scopes);
+            // use rustc_middle::mir::ClearCrossCrate;
+            // match source_scopes {
+            //     ClearCrossCrate::Set(data) => {
+            //         match data.safety {
+            //             rustc_middle::mir::Safety::Safe => {
+            //                 println!("Safe");
+            //             }
+            //             rustc_middle::mir::Safety::BuiltinUnsafe => {
+            //                 println!("Safety::BuiltinUnsafe");
+            //             }
+            //             rustc_middle::mir::Safety::FnUnsafe => {
+            //                 println!("Safety::FnUnsafe");
+            //             }
+            //             rustc_middle::mir::Safety::ExplicitUnsafe(_) => {
+            //                 println!("Safety::ExplicitUnsafe");
+            //                 println!("location: {:?}, statement: {:?}", location, statements[location.statement_index]);
+            //             }
+            //             // _ => {
+            //             //     println!("Unsafe");
+            //             //     println!("location: {:?}, statement: {:?}", location, statements[location.statement_index]);    
+            //             // }
+            //         }
+            //     }
+            //     _ => {}
+            // }
            
             location.statement_index += 1;
         }

@@ -83,7 +83,7 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
         // println!("body_with_facts: {body_with_facts:#?}", body_with_facts = body_with_facts.region_inference_context.regions());
         let static_region = RegionVid::from_usize(0);
         let universal_region = &body_with_facts.input_facts.as_ref().unwrap().universal_region;
-        println!("universal_region: {:?}", &universal_region[1..]);
+        // println!("universal_region: {:?}", &universal_region[1..]);
         
         // let start = Instant::now();
         // println!("func_id: {:?}", def_id);
@@ -109,7 +109,7 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
     
         // let all_pointers_hash = all_pointers.iter().map(|(r, _)| *r).collect();
     
-        println!("all_pointers: {:?}", all_pointers);
+        // println!("all_pointers: {:?}", all_pointers);
         let max_region = all_pointers
         .iter()
         .map(|(region, _)| *region)
@@ -123,7 +123,7 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
         .filter(|(key, _)| *key != UNKNOWN_REGION && *key != RegionVid::from_usize(0))
         .collect();
     
-        println!("pointers_map: {:?}", pointers_map);
+        // println!("pointers_map: {:?}", pointers_map);
     
         let num_regions = max_region.as_usize() + 1;
         let all_regions = (0 .. num_regions).map(RegionVid::from_usize);
@@ -158,7 +158,7 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
         gather_borrows.visit_body(&body_with_facts.body);
         // println!("gather_borrows={gather_borrows:#?}", gather_borrows = gather_borrows.borrows);
         for (region, kind, place) in gather_borrows.borrows {
-            println!("gather_borrows.borrows region={region:?}, kind={kind:?}, place={place:?}");
+            // println!("gather_borrows.borrows region={region:?}, kind={kind:?}, place={place:?}");
             if place.is_direct(&body_with_facts.body) {
                 // println!("place is direct");
                 contains
@@ -215,9 +215,9 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
             }
           }
         }
-        println!("Initial contains: {contains:#?}");
+        // println!("Initial contains: {contains:#?}");
         // println!("Definite: {definite:#?}");
-        println!("Subset: {subset:#?}", subset = subset);
+        // println!("Subset: {subset:#?}", subset = subset);
     
         let edge_pairs = subset
             .rows()
@@ -226,8 +226,8 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
             .map(move |r2| (r1, r2)))
             .collect::<Vec<_>>();
 
-        println!("num_regions: {:?}", num_regions);
-        println!("edge_pairs: {:?}", edge_pairs);
+        // println!("num_regions: {:?}", num_regions);
+        // println!("edge_pairs: {:?}", edge_pairs);
         let subset_graph = VecGraph::new(num_regions, edge_pairs);
 
         let subset_sccs = Sccs::<RegionVid, RegionSccIndex>::new(&subset_graph);
@@ -319,7 +319,7 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
             for (place, _) in path_vec {
                 if !func_loans.contains_key(&place) {
                     let place_ty = place.ty(body_with_facts.body.local_decls(), tcx).ty;
-                    println!("func_loans does not contain place: {:?}, path_ty: {:?}, ref_mutability: {:?}", place, place_ty, place_ty.ref_mutability());
+                    // println!("func_loans does not contain place: {:?}, path_ty: {:?}, ref_mutability: {:?}", place, place_ty, place_ty.ref_mutability());
                 }
             }
         }

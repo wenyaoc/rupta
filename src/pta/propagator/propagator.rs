@@ -730,7 +730,6 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
             if src_path.is_call_return() && src_type.is_ref() && self.acx.analysis_options.compute_loans {
                 if let Some(func) = dst_path.get_containing_func() {
                     if self.loans.contains_key(&func) {
-                        println!("loans contains key: {:?}", func);
                         ret_ref = true;
                     }
                 }
@@ -754,7 +753,7 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
                     if ret_ref {
                         // println!("Checking loans: adding pts {:?} to {:?}", pointee_path, dst_path);
                         if !self.contains_in_loans(&dst_path, &pointee_path) {
-                            println!("Not in loans: adding pts {:?} to {:?}", pointee_path, dst_path);
+                            // println!("Not in loans: adding pts {:?} to {:?}", pointee_path, dst_path);
                             continue;
                         }
                     } 
@@ -807,11 +806,11 @@ impl<'pta, 'tcx, 'compilation, F, P> Propagator<'pta, 'tcx, 'compilation, F, P> 
         if let Some(pointee_func) = pointee_path.get_containing_func() {
             // println!("  Pointee func: {:?}", pointee_func);
             let dst_func_loans = self.loans.get(&dst_func).unwrap();
-            // println!("  Loans: {:?}", dst_func_loans);
+            // println!("function: {:?}, loans: {:?}", dst_func, dst_func_loans);
             // println!("  Adding pts from {:?} to {:?}", pointee_path, dst_path);
             if let Some(dst_loan_set) = dst_path.get_path_loans(dst_func_loans) {
-                // println!("  Loan set: {:?}", dst_loan_set);
-                println!("Checking loans: adding pts {:?} to {:?}", pointee_path, dst_path);
+                println!("func: {:?}, path: {:?}, loans: {:?}", dst_func, dst_path, dst_loan_set);
+                // println!("Checking loans: adding pts {:?} to {:?}", pointee_path, dst_path);
                 //TODO: CEHCK DEREFERENCE
                 if !pointee_path.contains_in_loan_set(dst_path, &dst_loan_set, self.pag, self.pt_data) {
                     return false;
