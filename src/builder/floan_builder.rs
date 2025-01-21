@@ -82,8 +82,11 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
         let body_with_facts = borrowck_util::get_bodies(tcx, local_def_id);
         // println!("body_with_facts: {body_with_facts:#?}", body_with_facts = body_with_facts.region_inference_context.regions());
         let static_region = RegionVid::from_usize(0);
+        // println!("fn_name: {:?}, input_facts: {:?}", tcx.def_path_str(def_id), body_with_facts.input_facts);
         let universal_region = &body_with_facts.input_facts.as_ref().unwrap().universal_region;
-        // println!("universal_region: {:?}", &universal_region[1..]);
+        // let region_inference_context = &body_with_facts.region_inference_context;
+        // let (path, target_region) =self.find_constraint_paths_between_regions(from_region, target_test).unwrap(); 
+        // // println!("universal_region: {:?}", &universal_region[1..]);
         
         // let start = Instant::now();
         // println!("func_id: {:?}", def_id);
