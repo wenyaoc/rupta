@@ -168,6 +168,8 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
                     // println!("Loans: {:?}", loans);
                     for (func_places, loans) in loans {
                         let func_path = self.get_path_for_place(&func_places);
+                        // println!("Func place: {:?}, local: {:?}, ptojection: {:?}", func_places, func_places.local, func_places.projection);
+                        // println!("      Func path: {:?}", func_path);
                         let (mutability, loan_set) = loans;
                         let mut path_loan_set = PathLoanMap::new();
                         for (loan_place, loan_mutability) in loan_set {
@@ -180,7 +182,7 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
                         }
                         // func_loans.insert(func_path.clone(), (mutability, path_loan_set));
                         func_loans.insert(func_path.clone(), (mutability, path_loan_set));
-
+                        
                         
                     }
                     // println!("Func loans: {:?}", func_loans);

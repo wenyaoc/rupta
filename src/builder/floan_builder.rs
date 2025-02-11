@@ -106,13 +106,13 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
         .local_decls
         .indices()
         .flat_map(|local| {
+            println!("local: {:?}", local);
             Place::from_local(local, tcx).interior_pointers(tcx, &body_with_facts.body, def_id)
         })
         .collect::<Vec<_>>();
-    
-        // let all_pointers_hash = all_pointers.iter().map(|(r, _)| *r).collect();
-    
-        // println!("all_pointers: {:?}", all_pointers);
+        
+
+        println!("all_pointers: {:?}", all_pointers);
         let max_region = all_pointers
         .iter()
         .map(|(region, _)| *region)
@@ -126,7 +126,7 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
         .filter(|(key, _)| *key != UNKNOWN_REGION && *key != RegionVid::from_usize(0))
         .collect();
     
-        // println!("pointers_map: {:?}", pointers_map);
+        println!("pointers_map: {:?}", pointers_map);
     
         let num_regions = max_region.as_usize() + 1;
         let all_regions = (0 .. num_regions).map(RegionVid::from_usize);
@@ -218,7 +218,7 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
             }
           }
         }
-        // println!("Initial contains: {contains:#?}");
+        println!("Initial contains: {contains:#?}");
         // println!("Definite: {definite:#?}");
         // println!("Subset: {subset:#?}", subset = subset);
     
@@ -303,7 +303,7 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
             }
         }
         }
-        // println!("Final contains: {contains:#?}", contains = contains);
+        println!("Final contains: {contains:#?}", contains = contains);
         // elapsed("fixpoint", start);
         let mut func_loans: PlaceLoanMap<'tcx> = HashMap::default();
         for (region, contain) in contains {
@@ -326,7 +326,7 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
                 }
             }
         }
-        // println!("func_loans: {func_loans:#?}", func_loans = func_loans);
+        println!("func_loans: {func_loans:#?}", func_loans = func_loans);
         func_loans 
     
     }
