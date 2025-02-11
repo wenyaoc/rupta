@@ -499,13 +499,26 @@ impl<P: PAGPath> PAG<P> {
         let mut fpag = FuncPAG::new(func_id);
         let mir = acx.tcx.optimized_mir(def_id);
 
+        // if let Some(local_defid) = def_id.as_local() {
+        //     let (input_body, promoted) = acx.tcx.mir_promoted(local_defid);
+        //     println!("input_body: {:?}", input_body);
+        //     println!("promoted: {:?}", promoted);
+        //     let opt_closure_req = do_mir_borrowck(acx.tcx, input_body, promoted, None).0;
+        // } 
+
         // println!("region_inference_context: {:?}", body_with_facts.region_inference_context.var_infos);
         let mut builder = fpag_builder::FuncPAGBuilder::new(acx, func_id, &mir, &mut fpag);
         builder.build();
         
         if let Some(_) = def_id.as_local() {
             builder.build_loans();
-        }
+        } 
+        // else {
+        //     // let body = mir;
+        //     let (input_body, promoted) = acx.tcx.mir_promoted(def_id);
+        //     println!("input_body: {:?}", input_body);
+        //     println!("promoted: {:?}", promoted);
+        // }
 
         // Build function pags for static variables encountered in this function.
         let mut static_funcs = HashSet::new();
