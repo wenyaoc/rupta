@@ -11,6 +11,7 @@
     type_alias_impl_trait,     // for impl Trait in trait definition, eg crate::mir::utils 
     trait_alias,
     impl_trait_in_assoc_type,
+    let_chains,                 // for rustc_borrowck
 )]
 #![allow(
     clippy::single_match,

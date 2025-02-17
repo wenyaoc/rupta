@@ -188,6 +188,9 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
                     // println!("Func loans: {:?}", func_loans);
                     self.fpag.func_loans = func_loans;
                 }              
+            } else {
+                use crate::util::borrowck_util::my_mir_borrowck;
+                my_mir_borrowck(self.acx.tcx, def_id);
             }
         }
         

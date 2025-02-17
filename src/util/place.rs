@@ -234,7 +234,7 @@ impl<'tcx> PlaceExt<'tcx> for Place<'tcx> {
     def_id: DefId,
   ) -> HashMap<RegionVid, Vec<(Place<'tcx>, Mutability)>> {
     let ty = self.ty(body.local_decls(), tcx).ty;
-    println!("  ty: {:?}", ty);
+    // println!("  ty: {:?}", ty);
     let mut region_collector = CollectRegions {
       tcx,
       def_id,
@@ -253,7 +253,7 @@ impl<'tcx> PlaceExt<'tcx> for Place<'tcx> {
       },
     };
     region_collector.visit_ty(ty);
-    println!(" region_collector.regions: {:?}", region_collector.regions);
+    // println!(" region_collector.regions: {:?}", region_collector.regions);
     region_collector.regions
   }
 
@@ -484,19 +484,19 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for CollectRegions<'tcx> {
 
     self.ty_stack.push(ty);
 
-    println!("  kind: {:?}, is_box: {:?}, is_primitive_ty: {:?}", ty.kind(), ty.is_box(), ty.is_primitive_ty());
+    // println!("  kind: {:?}, is_box: {:?}, is_primitive_ty: {:?}", ty.kind(), ty.is_box(), ty.is_primitive_ty());
     match ty.kind() {
       _ if ty.is_box() => {
-        println!("  ty is_box");
+        // println!("  ty is_box");
         self.visit_region(Region::new_var(tcx, UNKNOWN_REGION));
         self.place_stack.push(ProjectionElem::Deref);
-        println!("  visit_ty: {:?}", ty.boxed_ty());
+        // println!("  visit_ty: {:?}", ty.boxed_ty());
         self.visit_ty(ty.boxed_ty());
         self.place_stack.pop();
       }
 
       TyKind::Tuple(fields) => {
-        println!("  tyKind Tuple");
+        // println!("  tyKind Tuple");
         for (i, field) in fields.iter().enumerate() {
           self
             .place_stack
@@ -508,10 +508,10 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for CollectRegions<'tcx> {
 
       TyKind::Adt(adt_def, subst) => match adt_def.adt_kind() {
         ty::AdtKind::Struct => {
-          println!("  tyKind Struct");
-          println ! ("  adt_def: {:?}, subst: {:?}", adt_def, subst);
+          // println!("  tyKind Struct");
+          // println ! ("  adt_def: {:?}, subst: {:?}", adt_def, subst);
           for (i, field) in adt_def.all_visible_fields(self.def_id, tcx).enumerate() {
-            println!("  i={:?}, field={:?}", i, field);
+            // println!("  i={:?}, field={:?}", i, field);
             let ty = field.ty(tcx, subst);
             self
               .place_stack
@@ -522,10 +522,10 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for CollectRegions<'tcx> {
         }
         ty::AdtKind::Union => {
           // unsafe, so ignore
-          println!("  tyKind Union");
+          // println!("  tyKind Union");
         }
         ty::AdtKind::Enum => {
-          println!("  tyKind Enum");
+          // println!("  tyKind Enum");
           for (i, variant) in adt_def.variants().iter().enumerate() {
             let variant_index = VariantIdx::from_usize(i);
             let cast = PlaceElem::Downcast(
@@ -546,7 +546,7 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for CollectRegions<'tcx> {
       },
 
       TyKind::Array(elem_ty, _) | TyKind::Slice(elem_ty) => {
-        println!("  tyKind Array or Slice");
+        // println!("  tyKind Array or Slice");
         self
           .place_stack
           .push(ProjectionElem::Index(Local::from_usize(0)));
@@ -568,12 +568,12 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for CollectRegions<'tcx> {
       },
 
       TyKind::Closure(_, substs) | TyKind::Coroutine(_, substs) => {
-        println!("  tyKind Closure or Coroutine");
+        // println!("  tyKind Closure or Coroutine");
         self.visit_ty(substs.as_closure().tupled_upvars_ty());
       }
 
       TyKind::RawPtr(TypeAndMut { ty, .. }) => {
-        println!("  tyKind RawPtr");
+        // println!("  tyKind RawPtr");
         self.visit_region(Region::new_var(tcx, UNKNOWN_REGION));
         self.place_stack.push(ProjectionElem::Deref);
         self.visit_ty(*ty);
@@ -655,7 +655,7 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for CollectRegions<'tcx> {
     };
 
     let place = Place::make(self.local, &self.place_stack, self.tcx);
-    println!("  place_stack: {:?}, place: {:?}", self.place_stack, place);
+    // println!("  place_stack: {:?}, place: {:?}", self.place_stack, place);
     self
       .regions
       .entry(region)

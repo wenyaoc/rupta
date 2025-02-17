@@ -30,6 +30,8 @@ pub mod body;
 pub mod span;
 pub mod control_dependencies;
 pub mod ty;
+pub mod universal_regions;
+pub mod renumber;
 /// Returns the location of the rust system binaries that are associated with this build of rust-pta.
 /// The location is obtained by looking at the contents of the environmental variables that were
 /// set at the time rust-pta was compiled. If the rust compiler was installed by rustup, the variables

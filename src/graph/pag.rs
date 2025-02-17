@@ -499,20 +499,38 @@ impl<P: PAGPath> PAG<P> {
         let mut fpag = FuncPAG::new(func_id);
         let mir = acx.tcx.optimized_mir(def_id);
 
-        // if let Some(local_defid) = def_id.as_local() {
-        //     let (input_body, promoted) = acx.tcx.mir_promoted(local_defid);
-        //     println!("input_body: {:?}", input_body);
-        //     println!("promoted: {:?}", promoted);
-        //     let opt_closure_req = do_mir_borrowck(acx.tcx, input_body, promoted, None).0;
+        use rustc_index::IndexSlice;
+        use std::borrow::Borrow;
+        use rustc_middle::mir::Body;
+
+
+        // if let Some(_) = def_id.as_local() {
+        //     let input_body = mir;
+        //     let promoted = acx.tcx.promoted_mir(def_id);
+
+        //     let input_body: &Body<'_> = &input_body.borrow();
+        //     if input_body.should_skip() || input_body.tainted_by_errors.is_some() {
+        //         println!("Skipping borrowck because of injected body or tainted body");
+        //         // TODO: https://doc.rust-lang.org/stable/nightly-rustc/src/rustc_borrowck/lib.rs.html#1-2562
+        //     }
+        //     let input_promped: &IndexSlice<_, _> = &promoted.borrow();
+        //     println!("input_body: {:?}, input_promped: {:?}", input_body, input_promped);
+            
         // } 
+        // let body_owner_kind = acx.tcx.hir().body_owner_kind(def_id);
+        // let def_kind = acx.tcx.def_kind(def_id);
+
+        // println!("body_owner_kind: {:?}", body_owner_kind);
+        // println!("def_kind: {:?}, is_typeck_child: {:?}", def_kind, acx.tcx.is_typeck_child(def_id));
 
         // println!("region_inference_context: {:?}", body_with_facts.region_inference_context.var_infos);
         let mut builder = fpag_builder::FuncPAGBuilder::new(acx, func_id, &mir, &mut fpag);
         builder.build();
         
-        if let Some(_) = def_id.as_local() {
+        //TODO: REMOVE //
+        // if let Some(_) = def_id.as_local() {
             builder.build_loans();
-        } 
+        // } 
         // else {
         //     // let body = mir;
         //     let (input_body, promoted) = acx.tcx.mir_promoted(def_id);
