@@ -153,7 +153,7 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
 
     pub fn build_loans(&mut self) {
         if self.acx.analysis_options.compute_loans {
-            // println!("Building loans for {:?}, {:?}", self.func_id, self.def_id());
+            println!("Building loans for {:?}, {:?}", self.func_id, self.def_id());
             let def_id = self.def_id();
             if let Some(local_def_id) = def_id.as_local() {
                 // Figure out what primary body this item has.
@@ -188,7 +188,8 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
                     // println!("Func loans: {:?}", func_loans);
                     self.fpag.func_loans = func_loans;
                 }              
-            } else {
+            } 
+            else {
                 use crate::util::borrowck_util::my_mir_borrowck;
                 my_mir_borrowck(self.acx.tcx, def_id);
             }

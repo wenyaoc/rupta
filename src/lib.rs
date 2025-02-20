@@ -36,6 +36,7 @@ extern crate rustc_target;
 extern crate polonius_engine;
 extern crate rustc_infer;
 extern crate rustc_trait_selection;
+extern crate rustc_mir_dataflow;
 
 pub mod builder;
 pub mod graph;

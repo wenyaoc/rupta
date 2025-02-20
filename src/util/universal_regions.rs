@@ -309,9 +309,9 @@ impl<'tcx> UniversalRegions<'tcx> {
             region_mapping.push(fr);
         });
 
-        for_each_late_bound_region_in_recursive_scope(tcx, tcx.parent(closure_def_id), |r| {
-            region_mapping.push(r);
-        });
+        // for_each_late_bound_region_in_recursive_scope(tcx, tcx.parent(closure_def_id), |r| {
+        //     region_mapping.push(r);
+        // });
 
         assert_eq!(
             region_mapping.len(),
@@ -408,9 +408,9 @@ impl<'tcx> UniversalRegions<'tcx> {
                 // tests, and the resulting print-outs include def-ids
                 // and other things that are not stable across tests!
                 // So we just include the region-vid. Annoying.
-                for_each_late_bound_region_in_recursive_scope(tcx, def_id, |r| {
-                    err.note(format!("late-bound region is {:?}", self.to_region_vid(r)));
-                });
+                // for_each_late_bound_region_in_recursive_scope(tcx, def_id, |r| {
+                //     err.note(format!("late-bound region is {:?}", self.to_region_vid(r)));
+                // });
             }
             DefiningTy::Coroutine(def_id, args) => {
                 let v = with_no_trimmed_paths!(
@@ -428,9 +428,9 @@ impl<'tcx> UniversalRegions<'tcx> {
                 // FIXME: As above, we'd like to print out the region
                 // `r` but doing so is not stable across architectures
                 // and so forth.
-                for_each_late_bound_region_in_recursive_scope(tcx, def_id, |r| {
-                    err.note(format!("late-bound region is {:?}", self.to_region_vid(r)));
-                });
+                // for_each_late_bound_region_in_recursive_scope(tcx, def_id, |r| {
+                //     err.note(format!("late-bound region is {:?}", self.to_region_vid(r)));
+                // });
             }
             DefiningTy::FnDef(def_id, args) => {
                 err.note(format!("defining type: {}", tcx.def_path_str_with_args(def_id, args),));
@@ -496,22 +496,22 @@ impl<'cx, 'tcx> UniversalRegionsBuilder<'cx, 'tcx> {
             // fn foo<'a>() {
             //     let c = || { let x: &'a u32 = ...; }
             // }
-            for_each_late_bound_region_in_recursive_scope(
-                self.infcx.infcx.tcx,
-                self.infcx.infcx.tcx.parent(self.mir_def),
-                |r| {
-                    // // debug!(?r);
-                    if !indices.indices.contains_key(&r) {
-                        let region_vid = {
-                            let name = r.get_name_or_anon();
-                            self.infcx.next_nll_region_var(FR, || RegionCtxt::LateBound(name))
-                        };
+            // for_each_late_bound_region_in_recursive_scope(
+            //     self.infcx.infcx.tcx,
+            //     self.infcx.infcx.tcx.parent(self.mir_def),
+            //     |r| {
+            //         // // debug!(?r);
+            //         if !indices.indices.contains_key(&r) {
+            //             let region_vid = {
+            //                 let name = r.get_name_or_anon();
+            //                 self.infcx.next_nll_region_var(FR, || RegionCtxt::LateBound(name))
+            //             };
 
-                        // // debug!(?region_vid);
-                        indices.insert_late_bound_region(r, region_vid.as_var());
-                    }
-                },
-            );
+            //             // // debug!(?region_vid);
+            //             indices.insert_late_bound_region(r, region_vid.as_var());
+            //         }
+            //     },
+            // );
 
             // Any regions created during the execution of `defining_ty` or during the above
             // late-bound region replacement are all considered 'extern' regions
@@ -530,18 +530,18 @@ impl<'cx, 'tcx> UniversalRegionsBuilder<'cx, 'tcx> {
         );
         // Converse of above, if this is a function/closure then the late-bound regions declared on its
         // signature are local.
-        for_each_late_bound_region_in_item(self.infcx.infcx.tcx, self.mir_def, |r| { 
-            // // debug!(?r);
-            if !indices.indices.contains_key(&r) {
-                let region_vid = {
-                    let name = r.get_name_or_anon();
-                    self.infcx.next_nll_region_var(FR, || RegionCtxt::LateBound(name))
-                };
+        // for_each_late_bound_region_in_item(self.infcx.infcx.tcx, self.mir_def, |r| { 
+        //     // // debug!(?r);
+        //     if !indices.indices.contains_key(&r) {
+        //         let region_vid = {
+        //             let name = r.get_name_or_anon();
+        //             self.infcx.next_nll_region_var(FR, || RegionCtxt::LateBound(name))
+        //         };
 
-                // // debug!(?region_vid);
-                indices.insert_late_bound_region(r, region_vid.as_var());
-            }
-        });
+        //         // // debug!(?region_vid);
+        //         indices.insert_late_bound_region(r, region_vid.as_var());
+        //     }
+        // });
 
         let (unnormalized_output_ty, mut unnormalized_input_tys) =
             inputs_and_output.split_last().unwrap();
@@ -654,15 +654,15 @@ impl<'cx, 'tcx> UniversalRegionsBuilder<'cx, 'tcx> {
                     // proper type with NLL infer vars.
 
                     //TODO: fIX THE BELOW
-                    // let ty = tcx
-                    //     .typeck(self.mir_def)
-                    //     .node_type(tcx.local_def_id_to_hir_id(self.mir_def)); //TODO: mir_def
-                    // let args = InlineConstArgs::new(
-                    //     tcx,
-                    //     InlineConstArgsParts { parent_args: identity_args, ty },
-                    // )
-                    // .args;
-                    // let args = self.infcx.replace_free_regions_with_nll_infer_vars(FR, args);
+                    let ty = tcx
+                        .typeck(self.mir_def.expect_local())
+                        .node_type(tcx.local_def_id_to_hir_id(self.mir_def.expect_local())); //TODO: mir_def
+                    let args = InlineConstArgs::new(
+                        tcx,
+                        InlineConstArgsParts { parent_args: identity_args, ty },
+                    )
+                    .args;
+                    let args = self.infcx.replace_free_regions_with_nll_infer_vars(FR, args);
                     let args =
                         self.infcx.replace_free_regions_with_nll_infer_vars(FR, identity_args);
                     DefiningTy::InlineConst(self.mir_def, args)
@@ -937,7 +937,7 @@ fn for_each_late_bound_region_in_item<'tcx>(
         return;
     }
 
-    for bound_var in tcx.late_bound_vars(tcx.local_def_id_to_hir_id(mir_def_id)) { //TODO: mir_def_id
+    for bound_var in tcx.late_bound_vars(tcx.local_def_id_to_hir_id(mir_def_id.expect_local())) { //TODO: mir_def_id
         let ty::BoundVariableKind::Region(bound_region) = bound_var else {
             continue;
         };
@@ -945,4 +945,6 @@ fn for_each_late_bound_region_in_item<'tcx>(
             ty::Region::new_late_param(tcx, mir_def_id, bound_region);
         f(liberated_region);
     }
+    
+    return;
 }

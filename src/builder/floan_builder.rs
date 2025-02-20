@@ -86,7 +86,7 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
         let universal_region = &body_with_facts.input_facts.as_ref().unwrap().universal_region;
         // let region_inference_context = &body_with_facts.region_inference_context;
         // let (path, target_region) =self.find_constraint_paths_between_regions(from_region, target_test).unwrap(); 
-        // // println!("universal_region: {:?}", &universal_region[1..]);
+        println!("universal_region: {:?}", universal_region);
         
         // let start = Instant::now();
         // println!("func_id: {:?}", def_id);

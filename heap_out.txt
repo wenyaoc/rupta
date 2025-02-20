@@ -1,0 +1,300 @@
+Processing input file: src/lib.rs
+Used Memory Before Analysis: 631 MB
+Max Memory in Analysis: 0 MB
+Processing input file: src/bin/cargo-pta.rs
+Rapid Type Analysis completed.
+Rapid Type Analysis time: 162ms 276us 23ns
+Pre-analysis time 164ms 237us 243ns
+Building loans for FuncId(0), DefId(0:16 ~ cargo_pta[efb4]::main)
+universal_region: ['?0, '?1]
+func_loans: {
+    _56: (
+        Not,
+        {
+            (
+                _42,
+                Not,
+            ),
+        },
+    ),
+    _40: (
+        Not,
+        {
+            (
+                _27,
+                Not,
+            ),
+        },
+    ),
+    _18: (
+        Not,
+        {
+            (
+                _19,
+                Not,
+            ),
+        },
+    ),
+    _3: (
+        Mut,
+        {
+            (
+                _4,
+                Mut,
+            ),
+        },
+    ),
+    (((*_31) as Some).0: &'?139 str): (
+        Not,
+        {
+            (
+                _27,
+                Not,
+            ),
+        },
+    ),
+    _66: (
+        Not,
+        {
+            (
+                _67,
+                Not,
+            ),
+        },
+    ),
+    (*_55): (
+        Not,
+        {
+            (
+                _27,
+                Not,
+            ),
+        },
+    ),
+    _69: (
+        Not,
+        {
+            (
+                _71,
+                Not,
+            ),
+        },
+    ),
+    _42: (
+        Not,
+        {
+            (
+                _27,
+                Not,
+            ),
+        },
+    ),
+    _33: (
+        Not,
+        {
+            (
+                ((_24 as Some).0: &'?64 str),
+                Not,
+            ),
+        },
+    ),
+    _31: (
+        Not,
+        {
+            (
+                _24,
+                Not,
+            ),
+        },
+    ),
+    _38: (
+        Not,
+        {
+            (
+                ((_24 as Some).0: &'?72 str),
+                Not,
+            ),
+        },
+    ),
+    _70: (
+        Not,
+        {
+            (
+                _71,
+                Not,
+            ),
+        },
+    ),
+    _17: (
+        Not,
+        {
+            (
+                _19,
+                Not,
+            ),
+        },
+    ),
+    _51: (
+        Not,
+        {
+            (
+                _53,
+                Not,
+            ),
+        },
+    ),
+    _64: (
+        Not,
+        {
+            (
+                _67,
+                Not,
+            ),
+        },
+    ),
+    (*_33): (
+        Not,
+        {
+            (
+                _27,
+                Not,
+            ),
+        },
+    ),
+    ((_24 as Some).0: &'?134 str): (
+        Not,
+        {
+            (
+                _27,
+                Not,
+            ),
+        },
+    ),
+    _55: (
+        Not,
+        {
+            (
+                _42,
+                Not,
+            ),
+        },
+    ),
+    _26: (
+        Not,
+        {
+            (
+                _27,
+                Not,
+            ),
+        },
+    ),
+    _32: (
+        Not,
+        {
+            (
+                _27,
+                Not,
+            ),
+        },
+    ),
+    _35: (
+        Not,
+        {
+            (
+                _27,
+                Not,
+            ),
+        },
+    ),
+    (*_56): (
+        Not,
+        {
+            (
+                _27,
+                Not,
+            ),
+        },
+    ),
+    _37: (
+        Not,
+        {
+            (
+                _27,
+                Not,
+            ),
+        },
+    ),
+    _28: (
+        Mut,
+        {
+            (
+                _29,
+                Mut,
+            ),
+        },
+    ),
+    _52: (
+        Not,
+        {
+            (
+                _53,
+                Not,
+            ),
+        },
+    ),
+    (*_38): (
+        Not,
+        {
+            (
+                _27,
+                Not,
+            ),
+        },
+    ),
+    _50: (
+        Not,
+        {
+            (
+                _53,
+                Not,
+            ),
+        },
+    ),
+    _65: (
+        Not,
+        {
+            (
+                _67,
+                Not,
+            ),
+        },
+    ),
+    _16: (
+        Not,
+        {
+            (
+                _19,
+                Not,
+            ),
+        },
+    ),
+    ((_25 as Some).0: &'?135 std::string::String): (
+        Not,
+        {
+            (
+                _27,
+                Not,
+            ),
+        },
+    ),
+}
+Building loans for FuncId(7), DefId(2:8090 ~ core[f0b2]::iter::traits::iterator::Iterator::take_while)
+LOCAL_CRATE: crate0, CURRENT_CRATE: crate2
+my_mir_borrowck: DefId(2:8090 ~ core[f0b2]::iter::traits::iterator::Iterator::take_while), index: DefIndex(8090), krate: crate2
+def_id: DefId(2:8090 ~ core[f0b2]::iter::traits::iterator::Iterator::take_while), parent_def_id: DefId(2:8051 ~ core[f0b2]::iter::traits::iterator::Iterator)
+last_span: /home/wenyao/.rustup/toolchains/nightly-2024-02-06-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/iter/traits/iterator.rs:1237:5: 1243:6 (#0)
+stmt: _0 = std::iter::TakeWhile::<Self, P> { iter: _1, flag: const false, predicate: _2 }, category: Return(Normal)
+Building loans for FuncId(8), DefId(2:8166 ~ core[f0b2]::iter::traits::iterator::Iterator::any)
+LOCAL_CRATE: crate0, CURRENT_CRATE: crate2
+my_mir_borrowck: DefId(2:8166 ~ core[f0b2]::iter::traits::iterator::Iterator::any), index: DefIndex(8166), krate: crate2
+def_id: DefId(2:8166 ~ core[f0b2]::iter::traits::iterator::Iterator::any), parent_def_id: DefId(2:8051 ~ core[f0b2]::iter::traits::iterator::Iterator)
