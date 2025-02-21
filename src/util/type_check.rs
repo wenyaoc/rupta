@@ -52,7 +52,7 @@ use rustc_mir_dataflow::move_paths::MoveData;
 use rustc_mir_dataflow::ResultsCursor;
 
 use rustc_borrowck::consumers::LocationTable;
-use rustc_borrowck::borrow_set::BorrowSet;
+// use rustc_borrowck::borrow_set::BorrowSet;
 use polonius_engine::AllFacts;
 // use crate::session_diagnostics::{MoveUnsized, SimdShuffleLastConst};
 // use crate::{
@@ -69,10 +69,11 @@ use polonius_engine::AllFacts;
 //     // universal_regions::{DefiningTy, UniversalRegions},
 //     // BorrowckInferCtxt,
 // };
-
+use rustc_borrowck::consumers::RustcFacts;
 
 use crate::util::renumber::BorrowckInferCtxt;
 use crate::util::universal_regions::{DefiningTy, UniversalRegions};
+
 // macro_rules! span_mirbug {
 //     ($context:expr, $elem:expr, $($message:tt)*) => ({
 //         $crate::type_check::mirbug(
@@ -154,7 +155,9 @@ pub fn type_check<'mir, 'tcx>(
         // universe_causes: FxIndexMap::default(),
     };
     let mut location_table = PoloniusLocationTable::new(body);
-
+    let mut borrow_set = BorrowSet::build(infcx.infcx.tcx, body);
+    // println!("body: {:?}", body);
+    println!("borrow_set: {:?}", borrow_set);
     // let CreateResult {
     //     universal_region_relations,
     //     region_bound_pairs,
@@ -177,8 +180,8 @@ pub fn type_check<'mir, 'tcx>(
     let mut borrowck_context = BorrowCheckContext {
         universal_regions: &universal_regions,
         location_table: &location_table,
-        // borrow_set,
-        // all_facts,
+        borrow_set: &borrow_set,
+        loan_issued_at: &mut Vec::<(RegionVid, BorrowIndex, LocationIndex)>::new(),
         constraints: &mut constraints,
         // upvars,
     };
@@ -228,7 +231,7 @@ pub fn type_check<'mir, 'tcx>(
             if !stmt.source_info.span.is_dummy() {
                 last_span = stmt.source_info.span;
             }
-            check_stmt(infcx.infcx.tcx, body, stmt, location, &universal_regions);
+            check_stmt(infcx.infcx.tcx, body, stmt, location, &universal_regions, &mut borrowck_context);
             location.statement_index += 1;
         }
     }
@@ -259,7 +262,9 @@ fn check_stmt<'tcx>(
     body: &Body<'tcx>, 
     stmt: &Statement<'tcx>, 
     location: Location,
-    universal_regions: &UniversalRegions<'tcx>) {
+    universal_regions: &UniversalRegions<'tcx>,
+    borrowck_context: &mut BorrowCheckContext<'_, 'tcx>,
+) {
     // let tcx = self.tcx();
 
     match &stmt.kind {
@@ -343,7 +348,7 @@ fn check_stmt<'tcx>(
             // }
 
             // self.check_rvalue(body, rv, location);
-            check_rvalue(tcx, body, rv, location);
+            check_rvalue(tcx, body, rv, location, borrowck_context);
             // if !self.unsized_feature_enabled() {
             //     let trait_ref = ty::TraitRef::from_lang_item(
             //         tcx,
@@ -410,7 +415,9 @@ fn check_rvalue<'tcx>(
     tcx: TyCtxt<'tcx>, 
     body: &Body<'tcx>, 
     rvalue: &Rvalue<'tcx>, 
-    location: Location) {
+    location: Location,
+    borrowck_context: &mut BorrowCheckContext<'_, 'tcx>,
+) {
         
     let span = body.source_info(location).span;
     // println!("rvalue: {:?}, span: {:?}", rvalue, span);
@@ -872,7 +879,7 @@ fn check_rvalue<'tcx>(
 
         Rvalue::Ref(region, _borrow_kind, borrowed_place) => {
             println!("Ref");
-            add_reborrow_constraint(body, location, *region, borrowed_place);
+            add_reborrow_constraint(tcx, borrowck_context, body, location, *region, borrowed_place);
             
         }
 
@@ -969,132 +976,147 @@ fn check_rvalue<'tcx>(
 /// - `location`: the location `L` where the borrow expression occurs
 /// - `borrow_region`: the region `'a` associated with the borrow
 /// - `borrowed_place`: the place `P` being borrowed
-fn add_reborrow_constraint(
-    borrowck_context: &BorrowCheckContext<'_, 'tcx>,
+fn add_reborrow_constraint<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    borrowck_context: &mut BorrowCheckContext<'_, 'tcx>,
     body: &Body<'tcx>,
     location: Location,
     borrow_region: ty::Region<'tcx>,
     borrowed_place: &Place<'tcx>,
 ) {
     // These constraints are only meaningful during borrowck:
-    let BorrowCheckContext { borrow_set, location_table, all_facts, constraints, .. } =
-        self.borrowck_context;
+    // let BorrowCheckContext { borrow_set, location_table, all_facts, constraints, .. } =
+    //     self.borrowck_context;
+    let location_table = borrowck_context.location_table;
+    let constraints = &borrowck_context.constraints;
+    let borrow_set = &borrowck_context.borrow_set;
+    let loan_issued_at = &mut borrowck_context.loan_issued_at;
 
     // In Polonius mode, we also push a `loan_issued_at` fact
     // linking the loan to the region (in some cases, though,
     // there is no loan associated with this borrow expression --
     // that occurs when we are borrowing an unsafe place, for
     // example).
-    if let Some(all_facts) = all_facts {
-        let _prof_timer = self.infcx.tcx.prof.generic_activity("polonius_fact_generation");
-        if let Some(borrow_index) = borrow_set.get_index_of(&location) {
-            let region_vid = borrow_region.as_var();
-            all_facts.loan_issued_at.push((
-                region_vid,
-                borrow_index,
-                location_table.mid_index(location),
-            ));
-        }
+    // if let Some(all_facts) = all_facts {
+    let _prof_timer = tcx.prof.generic_activity("polonius_fact_generation");
+    println!("add_reborrow_constraint");
+    if let Some(borrow_index) = borrow_set.get_index_of(&location) {
+        println!("borrow_index: {:?}", borrow_index);
+        let region_vid = borrow_region.as_var();
+        let start_index = location_table.statements_before_block[location.block];
+        let mid_index = LocationIndex::from_usize(start_index + location.statement_index * 2 + 1);
+        loan_issued_at.push((
+            region_vid,
+            borrow_index,
+            mid_index,
+        ));
+        println!("loan_issued_at: region_vid={:?}, borrow_index={:?}, mid_index={:?}", region_vid, borrow_index, mid_index);
+        // all_facts.loan_issued_at.push((
+        //     region_vid,
+        //     borrow_index,
+        //     mid_index,
+        // ));
     }
+    // }
 
     // If we are reborrowing the referent of another reference, we
     // need to add outlives relationships. In a case like `&mut
     // *p`, where the `p` has type `&'b mut Foo`, for example, we
     // need to ensure that `'b: 'a`.
 
-    debug!(
-        "add_reborrow_constraint({:?}, {:?}, {:?})",
-        location, borrow_region, borrowed_place
-    );
+    // debug!(
+    //     "add_reborrow_constraint({:?}, {:?}, {:?})",
+    //     location, borrow_region, borrowed_place
+    // );
 
-    let tcx = self.infcx.tcx;
-    let field = path_utils::is_upvar_field_projection(
-        tcx,
-        self.borrowck_context.upvars,
-        borrowed_place.as_ref(),
-        body,
-    );
-    let category = if let Some(field) = field {
-        ConstraintCategory::ClosureUpvar(field)
-    } else {
-        ConstraintCategory::Boring
-    };
+    // let tcx = self.infcx.tcx;
+    // let field = path_utils::is_upvar_field_projection(
+    //     tcx,
+    //     self.borrowck_context.upvars,
+    //     borrowed_place.as_ref(),
+    //     body,
+    // );
+    // let category = if let Some(field) = field {
+    //     ConstraintCategory::ClosureUpvar(field)
+    // } else {
+    //     ConstraintCategory::Boring
+    // };
 
-    for (base, elem) in borrowed_place.as_ref().iter_projections().rev() {
-        debug!("add_reborrow_constraint - iteration {:?}", elem);
+    // for (base, elem) in borrowed_place.as_ref().iter_projections().rev() {
+    //     debug!("add_reborrow_constraint - iteration {:?}", elem);
 
-        match elem {
-            ProjectionElem::Deref => {
-                let base_ty = base.ty(body, tcx).ty;
+    //     match elem {
+    //         ProjectionElem::Deref => {
+    //             let base_ty = base.ty(body, tcx).ty;
 
-                debug!("add_reborrow_constraint - base_ty = {:?}", base_ty);
-                match base_ty.kind() {
-                    ty::Ref(ref_region, _, mutbl) => {
-                        constraints.outlives_constraints.push(OutlivesConstraint {
-                            sup: ref_region.as_var(),
-                            sub: borrow_region.as_var(),
-                            locations: location.to_locations(),
-                            span: location.to_locations().span(body),
-                            category,
-                            variance_info: ty::VarianceDiagInfo::default(),
-                            from_closure: false,
-                        });
+    //             debug!("add_reborrow_constraint - base_ty = {:?}", base_ty);
+    //             match base_ty.kind() {
+    //                 ty::Ref(ref_region, _, mutbl) => {
+    //                     constraints.outlives_constraints.push(OutlivesConstraint {
+    //                         sup: ref_region.as_var(),
+    //                         sub: borrow_region.as_var(),
+    //                         locations: location.to_locations(),
+    //                         span: location.to_locations().span(body),
+    //                         category,
+    //                         variance_info: ty::VarianceDiagInfo::default(),
+    //                         from_closure: false,
+    //                     });
 
-                        match mutbl {
-                            hir::Mutability::Not => {
-                                // Immutable reference. We don't need the base
-                                // to be valid for the entire lifetime of
-                                // the borrow.
-                                break;
-                            }
-                            hir::Mutability::Mut => {
-                                // Mutable reference. We *do* need the base
-                                // to be valid, because after the base becomes
-                                // invalid, someone else can use our mutable deref.
+    //                     match mutbl {
+    //                         hir::Mutability::Not => {
+    //                             // Immutable reference. We don't need the base
+    //                             // to be valid for the entire lifetime of
+    //                             // the borrow.
+    //                             break;
+    //                         }
+    //                         hir::Mutability::Mut => {
+    //                             // Mutable reference. We *do* need the base
+    //                             // to be valid, because after the base becomes
+    //                             // invalid, someone else can use our mutable deref.
 
-                                // This is in order to make the following function
-                                // illegal:
-                                // ```
-                                // fn unsafe_deref<'a, 'b>(x: &'a &'b mut T) -> &'b mut T {
-                                //     &mut *x
-                                // }
-                                // ```
-                                //
-                                // As otherwise you could clone `&mut T` using the
-                                // following function:
-                                // ```
-                                // fn bad(x: &mut T) -> (&mut T, &mut T) {
-                                //     let my_clone = unsafe_deref(&'a x);
-                                //     ENDREGION 'a;
-                                //     (my_clone, x)
-                                // }
-                                // ```
-                            }
-                        }
-                    }
-                    ty::RawPtr(..) => {
-                        // deref of raw pointer, guaranteed to be valid
-                        break;
-                    }
-                    ty::Adt(def, _) if def.is_box() => {
-                        // deref of `Box`, need the base to be valid - propagate
-                    }
-                    _ => bug!("unexpected deref ty {:?} in {:?}", base_ty, borrowed_place),
-                }
-            }
-            ProjectionElem::Field(..)
-            | ProjectionElem::Downcast(..)
-            | ProjectionElem::OpaqueCast(..)
-            | ProjectionElem::Index(..)
-            | ProjectionElem::ConstantIndex { .. }
-            | ProjectionElem::Subslice { .. } => {
-                // other field access
-            }
-            ProjectionElem::Subtype(_) => {
-                bug!("ProjectionElem::Subtype shouldn't exist in borrowck")
-            }
-        }
-    }
+    //                             // This is in order to make the following function
+    //                             // illegal:
+    //                             // ```
+    //                             // fn unsafe_deref<'a, 'b>(x: &'a &'b mut T) -> &'b mut T {
+    //                             //     &mut *x
+    //                             // }
+    //                             // ```
+    //                             //
+    //                             // As otherwise you could clone `&mut T` using the
+    //                             // following function:
+    //                             // ```
+    //                             // fn bad(x: &mut T) -> (&mut T, &mut T) {
+    //                             //     let my_clone = unsafe_deref(&'a x);
+    //                             //     ENDREGION 'a;
+    //                             //     (my_clone, x)
+    //                             // }
+    //                             // ```
+    //                         }
+    //                     }
+    //                 }
+    //                 ty::RawPtr(..) => {
+    //                     // deref of raw pointer, guaranteed to be valid
+    //                     break;
+    //                 }
+    //                 ty::Adt(def, _) if def.is_box() => {
+    //                     // deref of `Box`, need the base to be valid - propagate
+    //                 }
+    //                 _ => bug!("unexpected deref ty {:?} in {:?}", base_ty, borrowed_place),
+    //             }
+    //         }
+    //         ProjectionElem::Field(..)
+    //         | ProjectionElem::Downcast(..)
+    //         | ProjectionElem::OpaqueCast(..)
+    //         | ProjectionElem::Index(..)
+    //         | ProjectionElem::ConstantIndex { .. }
+    //         | ProjectionElem::Subslice { .. } => {
+    //             // other field access
+    //         }
+    //         ProjectionElem::Subtype(_) => {
+    //             bug!("ProjectionElem::Subtype shouldn't exist in borrowck")
+    //         }
+    //     }
+    // }
 }
 
 
@@ -1719,8 +1741,8 @@ fn add_reborrow_constraint(
 struct BorrowCheckContext<'a, 'tcx> {
     pub(crate) universal_regions: &'a UniversalRegions<'tcx>,
     location_table: &'a PoloniusLocationTable,
-    // all_facts: &'a mut Option<AllFacts>,
-    // borrow_set: &'a BorrowSet<'tcx>,
+    loan_issued_at: &'a mut Vec<(RegionVid, BorrowIndex, LocationIndex)>,
+    borrow_set: &'a BorrowSet<'tcx>,
     pub(crate) constraints: &'a mut MirTypeckRegionConstraints<'tcx>,
     // upvars: &'a [&'a ty::CapturedPlace<'tcx>],
 }
@@ -3753,6 +3775,12 @@ pub struct PoloniusLocationTable {
     statements_before_block: IndexVec<BasicBlock, usize>,
 }
 
+rustc_index::newtype_index! {
+    #[orderable]
+    #[debug_format = "LocationIndex({})"]
+    pub struct LocationIndex {}
+}
+
 impl PoloniusLocationTable {
     pub(crate) fn new(body: &Body<'_>) -> Self {
         let mut num_points = 0;
@@ -3770,5 +3798,160 @@ impl PoloniusLocationTable {
         // println!("PoloniusLocationTable: num_points={:#?}", num_points);
 
         Self { num_points, statements_before_block }
+    }
+}
+
+
+use rustc_middle::mir;
+use rustc_borrowck::consumers::BorrowIndex;
+#[derive(Debug)]
+pub struct BorrowSet<'tcx> {
+    /// The fundamental map relating bitvector indexes to the borrows
+    /// in the MIR. Each borrow is also uniquely identified in the MIR
+    /// by the `Location` of the assignment statement in which it
+    /// appears on the right hand side. Thus the location is the map
+    /// key, and its position in the map corresponds to `BorrowIndex`.
+    pub(crate) location_map: FxIndexMap<Location, BorrowData<'tcx>>,
+
+    // /// Locations which activate borrows.
+    // /// NOTE: a given location may activate more than one borrow in the future
+    // /// when more general two-phase borrow support is introduced, but for now we
+    // /// only need to store one borrow index.
+    // pub(crate) activation_map: FxIndexMap<Location, Vec<BorrowIndex>>,
+
+    // /// Map from local to all the borrows on that local.
+    // pub(crate) local_map: FxIndexMap<mir::Local, FxIndexSet<BorrowIndex>>,
+
+    // pub(crate) locals_state_at_exit: LocalsStateAtExit,
+}
+
+impl<'tcx> BorrowSet<'tcx> {
+    pub fn build(
+        tcx: TyCtxt<'tcx>,
+        body: &Body<'tcx>,
+        // locals_are_invalidated_at_exit: bool,
+        // move_data: &MoveData<'tcx>,
+    ) -> Self {
+        let mut visitor = GatherBorrows {
+            tcx,
+            body,
+            location_map: Default::default(),
+            // activation_map: Default::default(),
+            // local_map: Default::default(),
+            // pending_activations: Default::default(),
+            // locals_state_at_exit: LocalsStateAtExit::build(
+            //     locals_are_invalidated_at_exit,
+            //     body,
+            //     move_data,
+            // ),
+        };
+
+        for (block, block_data) in traversal::preorder(body) {
+            visitor.visit_basic_block_data(block, block_data);
+        }
+
+        BorrowSet {
+            location_map: visitor.location_map,
+            // activation_map: visitor.activation_map,
+            // local_map: visitor.local_map,
+            // locals_state_at_exit: visitor.locals_state_at_exit,
+        }
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.location_map.len()
+    }
+
+    
+    pub(crate) fn get_index_of(&self, location: &Location) -> Option<BorrowIndex> {
+        self.location_map.get_index_of(location).map(BorrowIndex::from)
+    }
+}
+
+struct GatherBorrows<'a, 'tcx> {
+    tcx: TyCtxt<'tcx>,
+    body: &'a Body<'tcx>,
+    location_map: FxIndexMap<Location, BorrowData<'tcx>>,
+    // activation_map: FxIndexMap<Location, Vec<BorrowIndex>>,
+    // local_map: FxIndexMap<mir::Local, FxIndexSet<BorrowIndex>>,
+
+    // /// When we encounter a 2-phase borrow statement, it will always
+    // /// be assigning into a temporary TEMP:
+    // ///
+    // ///    TEMP = &foo
+    // ///
+    // /// We add TEMP into this map with `b`, where `b` is the index of
+    // /// the borrow. When we find a later use of this activation, we
+    // /// remove from the map (and add to the "tombstone" set below).
+    // pending_activations: FxIndexMap<mir::Local, BorrowIndex>,
+
+    // locals_state_at_exit: LocalsStateAtExit,
+}
+
+impl<'a, 'tcx> Visitor<'tcx> for GatherBorrows<'a, 'tcx> {
+    fn visit_assign(
+        &mut self,
+        assigned_place: &mir::Place<'tcx>,
+        rvalue: &mir::Rvalue<'tcx>,
+        location: mir::Location,
+    ) {
+        if let &mir::Rvalue::Ref(region, kind, borrowed_place) = rvalue {
+            // if borrowed_place.ignore_borrow(self.tcx, self.body, &self.locals_state_at_exit) {
+            //     debug!("ignoring_borrow of {:?}", borrowed_place);
+            //     return;
+            // }
+
+            let region = region.as_var();
+
+            let borrow = BorrowData {
+                kind,
+                region,
+                reserve_location: location,
+                // activation_location: TwoPhaseActivation::NotTwoPhase,
+                borrowed_place,
+                assigned_place: *assigned_place,
+            };
+            let (idx, _) = self.location_map.insert_full(location, borrow);
+            // let idx = BorrowIndex::from(idx);
+
+            // self.insert_as_pending_if_two_phase(location, assigned_place, kind, idx);
+
+            // self.local_map.entry(borrowed_place.local).or_default().insert(idx);
+        }
+
+        self.super_assign(assigned_place, rvalue, location)
+    }
+}
+
+
+#[derive(Debug, Clone)]
+pub struct BorrowData<'tcx> {
+    /// Location where the borrow reservation starts.
+    /// In many cases, this will be equal to the activation location but not always.
+    pub reserve_location: Location,
+    /// Location where the borrow is activated.
+    // pub activation_location: TwoPhaseActivation,
+    /// What kind of borrow this is
+    pub kind: mir::BorrowKind,
+    /// The region for which this borrow is live
+    pub region: RegionVid,
+    /// Place from which we are borrowing
+    pub borrowed_place: mir::Place<'tcx>,
+    /// Place to which the borrow was stored
+    pub assigned_place: mir::Place<'tcx>,
+}
+
+impl<'tcx> fmt::Display for BorrowData<'tcx> {
+    fn fmt(&self, w: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let kind = match self.kind {
+            mir::BorrowKind::Shared => "",
+            mir::BorrowKind::Fake => "fake ",
+            mir::BorrowKind::Mut { kind: mir::MutBorrowKind::ClosureCapture } => "uniq ",
+            // FIXME: differentiate `TwoPhaseBorrow`
+            mir::BorrowKind::Mut {
+                kind: mir::MutBorrowKind::Default | mir::MutBorrowKind::TwoPhaseBorrow,
+            } => "mut ",
+        };
+        write!(w, "&{:?} {}{:?}", self.region, kind, self.borrowed_place)
     }
 }
