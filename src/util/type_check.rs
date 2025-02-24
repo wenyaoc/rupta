@@ -279,35 +279,37 @@ fn check_stmt<'tcx>(
 
     match &stmt.kind {
         StatementKind::Assign(box (place, rv)) => {
+            println!("Assign");
+            let tcx = infcx.infcx.tcx;
             // Assignments to temporaries are not "interesting";
             // they are not caused by the user, but rather artifacts
             // of lowering. Assignments to other sorts of places *are* interesting
             // though.
             // println!("body.local_decls: {:?}", body.local_decls);
-            // let category = match place.as_local() {
-            //     Some(RETURN_PLACE) => {
-            //         let defining_ty = universal_regions.defining_ty;
-            //         if defining_ty.is_const() {
-            //             if tcx.is_static(defining_ty.def_id()) {
-            //                 ConstraintCategory::UseAsStatic
-            //             } else {
-            //                 ConstraintCategory::UseAsConst
-            //             }
-            //         } else {
-            //             ConstraintCategory::Return(ReturnConstraint::Normal)
-            //         }
-            //     }
-            //     // TODO: not available in current crate, check this
-            //     // Some(l)
-            //     //     if matches!(body.local_decls[l].local_info(), LocalInfo::AggregateTemp) =>
-            //     // {
-            //     //     ConstraintCategory::Usage
-            //     // }
-            //     // Some(l) if !body.local_decls[l].is_user_variable() => {
-            //     //     ConstraintCategory::Boring
-            //     // }
-            //     _ => ConstraintCategory::Assignment,
-            // };
+            let category = match place.as_local() {
+                Some(RETURN_PLACE) => {
+                    let defining_ty = universal_regions.defining_ty;
+                    if defining_ty.is_const() {
+                        if tcx.is_static(defining_ty.def_id()) {
+                            ConstraintCategory::UseAsStatic
+                        } else {
+                            ConstraintCategory::UseAsConst
+                        }
+                    } else {
+                        ConstraintCategory::Return(ReturnConstraint::Normal)
+                    }
+                }
+                // TODO: not available in current crate, check this
+                // Some(l)
+                //     if matches!(body.local_decls[l].local_info(), LocalInfo::AggregateTemp) =>
+                // {
+                //     ConstraintCategory::Usage
+                // }
+                // Some(l) if !body.local_decls[l].is_user_variable() => {
+                //     ConstraintCategory::Boring
+                // }
+                _ => ConstraintCategory::Assignment,
+            };
             // println!("category: {:?}", category);
             // println!("rv: {:?}", rv);
             // debug!(
@@ -316,14 +318,22 @@ fn check_stmt<'tcx>(
             //     place.as_local().map(|l| &body.local_decls[l])
             // );
 
-            // let place_ty = place.ty(body, tcx).ty;
+            let place_ty = place.ty(body, tcx).ty;
             // debug!(?place_ty);
             // let place_ty = self.normalize(place_ty, location);
+            let place_ty = param_env.and(normalize::Normalize { value: place_ty });
+            let result: Result<_, ErrorGuaranteed> = place_ty.fully_perform(&infcx.infcx, Locations::Single(location).span(body));
+            let TypeOpOutput { output: place_ty, .. } = result.unwrap();
             // debug!("place_ty normalized: {:?}", place_ty);
-            // let rv_ty = rv.ty(body, tcx);
+            let rv_ty = rv.ty(body, tcx);
             // debug!(?rv_ty);
             // let rv_ty = self.normalize(rv_ty, location);
+            let rv_ty = param_env.and(normalize::Normalize { value: rv_ty });
+            let result: Result<_, ErrorGuaranteed> = rv_ty.fully_perform(&infcx.infcx, Locations::Single(location).span(body));
+            let TypeOpOutput { output: rv_ty, .. } = result.unwrap();
             // debug!("normalized rv_ty: {:?}", rv_ty);
+            println!("place_ty: {:?}, rv_ty: {:?}", place_ty, rv_ty);
+            sub_types(place_ty, rv_ty, Locations::Single(location), category, infcx, borrowck_context, body);
             // if let Err(terr) =
             //     self.sub_types(rv_ty, place_ty, location.to_locations(), category)
             // {
