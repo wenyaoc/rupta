@@ -73,7 +73,7 @@ use rustc_borrowck::consumers::RustcFacts;
 
 use crate::util::renumber::BorrowckInferCtxt;
 use crate::util::universal_regions::{DefiningTy, UniversalRegions};
-
+use rustc_hir as hir;
 // macro_rules! span_mirbug {
 //     ($context:expr, $elem:expr, $($message:tt)*) => ({
 //         $crate::type_check::mirbug(
@@ -231,7 +231,14 @@ pub fn type_check<'mir, 'tcx>(
             if !stmt.source_info.span.is_dummy() {
                 last_span = stmt.source_info.span;
             }
-            check_stmt(infcx.infcx.tcx, body, stmt, location, &universal_regions, &mut borrowck_context);
+            check_stmt(
+                infcx, 
+                body, stmt, 
+                location, 
+                &universal_regions, 
+                &mut borrowck_context,
+                param_env,
+            );
             location.statement_index += 1;
         }
     }
@@ -254,18 +261,21 @@ pub fn type_check<'mir, 'tcx>(
     // );
 
     // translate_outlives_facts(&mut checker);
+    println!("constraints: {:?}", constraints);
 
 }
 
 fn check_stmt<'tcx>(
-    tcx: TyCtxt<'tcx>, 
+    infcx: &BorrowckInferCtxt<'tcx>,
     body: &Body<'tcx>, 
     stmt: &Statement<'tcx>, 
     location: Location,
     universal_regions: &UniversalRegions<'tcx>,
     borrowck_context: &mut BorrowCheckContext<'_, 'tcx>,
+    param_env: ty::ParamEnv<'tcx>,
 ) {
     // let tcx = self.tcx();
+    
 
     match &stmt.kind {
         StatementKind::Assign(box (place, rv)) => {
@@ -348,7 +358,8 @@ fn check_stmt<'tcx>(
             // }
 
             // self.check_rvalue(body, rv, location);
-            check_rvalue(tcx, body, rv, location, borrowck_context);
+            println!("stmt: {:?}, location: {:?}", stmt, location);
+            check_rvalue(infcx, body, rv, location, borrowck_context, param_env);
             // if !self.unsized_feature_enabled() {
             //     let trait_ref = ty::TraitRef::from_lang_item(
             //         tcx,
@@ -411,12 +422,198 @@ fn check_stmt<'tcx>(
     }
 }
 
+use rustc_trait_selection::traits::query::type_op::normalize;
+fn aggregate_field_ty<'tcx>(
+    // &mut self,
+    infcx: &BorrowckInferCtxt<'tcx>,
+    ak: &AggregateKind<'tcx>,
+    field_index: FieldIdx,
+    location: Location,
+    param_env: ty::ParamEnv<'tcx>,
+    body: &Body<'tcx>,
+) -> Ty<'tcx> {
+    let tcx = infcx.infcx.tcx;
+
+    match *ak {
+        AggregateKind::Adt(adt_did, variant_index, args, _, active_field_index) => {
+            let def = tcx.adt_def(adt_did);
+            let variant = &def.variant(variant_index);
+            let adj_field_index = active_field_index.unwrap_or(field_index);
+            let Some(field) = variant.fields.get(adj_field_index) else { todo!() };
+            let ty = field.ty(tcx, args);
+            println!("ty before normalize: {:?}", ty);
+            let type_op_ty = param_env.and(normalize::Normalize { value: ty });
+            let result: Result<_, ErrorGuaranteed> = type_op_ty.fully_perform(&infcx.infcx, Locations::Single(location).span(body));
+            // let TypeOpOutput { output, constraints, error_info } =
+            // type_op_ty.fully_perform(&infcx.infcx, Locations::Single(location).span(body));
+            // if let Some(field) = variant.fields.get(adj_field_index) {
+            //     Ok(self.normalize(field.ty(tcx, args), location))
+            // } else {
+            //     Err(FieldAccessError::OutOfRange { field_count: variant.fields.len() })
+            // }
+            let TypeOpOutput { output, .. } = result.unwrap();
+            output
+        }
+        AggregateKind::Closure(_, args) => {
+            let Some(ty) = args.as_closure().upvar_tys().get(field_index.as_usize()) else { todo!() };
+            *ty
+            // match args.as_closure().upvar_tys().get(field_index.as_usize()) {
+            //     Some(ty) => Ok(*ty),
+            //     None => Err(FieldAccessError::OutOfRange {
+            //         field_count: args.as_closure().upvar_tys().len(),
+            //     }),
+            // }
+        }
+        AggregateKind::Coroutine(_, args) => {
+            // It doesn't make sense to look at a field beyond the prefix;
+            // these require a variant index, and are not initialized in
+            // aggregate rvalues.
+            let Some(ty) = args.as_coroutine().prefix_tys().get(field_index.as_usize()) else { todo!() };
+            *ty
+            // match args.as_coroutine().prefix_tys().get(field_index.as_usize()) {
+            //     Some(ty) => Ok(*ty),
+            //     None => Err(FieldAccessError::OutOfRange {
+            //         field_count: args.as_coroutine().prefix_tys().len(),
+            //     }),
+            // }
+        }
+        AggregateKind::Array(ty) => ty,
+        AggregateKind::Tuple => {
+            unreachable!("This should have been covered in check_rvalues");
+        }
+    }
+}
+
+fn print_type<T>(_: &T) {
+    println!("The type of the variable is {}", std::any::type_name::<T>());
+}
+
+
+fn sub_types<'tcx>(
+    sub: Ty<'tcx>, 
+    sup: Ty<'tcx>, 
+    locations: Locations, 
+    category: ConstraintCategory<'tcx>,
+    infcx: &BorrowckInferCtxt<'tcx>,
+    borrowck_context: &mut BorrowCheckContext<'_, 'tcx>,
+    body: &Body<'tcx>,
+) {
+    let a = infcx.infcx.shallow_resolve(sub);
+    let b = infcx.infcx.shallow_resolve(sup);
+    println!("field_ty: {:?}, operand_ty: {:?}", a, b);
+    if a != b {
+        match (a.kind(), b.kind()) {
+            (_, &ty::Infer(ty::TyVar(vid))) => {
+                println!("_, Infer");
+                // if D::forbid_inference_vars() {
+                //     // Forbid inference variables in the RHS.
+                //     bug!("unexpected inference var {:?}", b)
+                // } else {
+                //     self.relate_ty_var((a, vid))
+                // }
+            }
+
+            (&ty::Infer(ty::TyVar(vid)), _) => {
+                // self.relate_ty_var((vid, b))
+                println!("Infer, _");
+            }
+
+            (
+                &ty::Alias(ty::Opaque, ty::AliasTy { def_id: a_def_id, .. }),
+                &ty::Alias(ty::Opaque, ty::AliasTy { def_id: b_def_id, .. }),
+            ) if a_def_id == b_def_id || infcx.infcx.next_trait_solver() => {
+                println!("Alias, Alias");
+                // infcx.super_combine_tys(self, a, b).or_else(|err| {
+                //     // This behavior is only there for the old solver, the new solver
+                //     // shouldn't ever fail. Instead, it unconditionally emits an
+                //     // alias-relate goal.
+                //     assert!(!self.infcx.next_trait_solver());
+                //     self.tcx().dcx().span_delayed_bug(
+                //         self.delegate.span(),
+                //         "failure to relate an opaque to itself should result in an error later on",
+                //     );
+                //     if a_def_id.is_local() { self.relate_opaques(a, b) } else { Err(err) }
+                // })
+            }
+            (&ty::Alias(ty::Opaque, ty::AliasTy { def_id, .. }), _)
+            | (_, &ty::Alias(ty::Opaque, ty::AliasTy { def_id, .. }))
+                if def_id.is_local() && !infcx.infcx.next_trait_solver() =>
+            {
+                // self.relate_opaques(a, b)
+                println!("Alias, _ | _, Alias");
+            }
+
+            _ => {
+                // debug!(?a, ?b, ?self.ambient_variance);
+                println!("default");
+                match (a.kind(), b.kind()) {
+                    (&ty::Ref(a_r, a_ty, a_mutbl), &ty::Ref(b_r, b_ty, b_mutbl)) => {
+                        println!("structurally_relate_tys");
+                        // self.push_outlives(b, a, Contravariant);
+                        let sub = borrowck_context.universal_regions.to_region_vid(b_r);
+                        let sup = borrowck_context.universal_regions.to_region_vid(a_r);
+                        borrowck_context.constraints.outlives_constraints.push(
+                            OutlivesConstraint {
+                                sup,
+                                sub,
+                                locations,
+                                span: locations.span(body),
+                                category,
+                                variance_info: ty::VarianceDiagInfo::default(),
+                                from_closure: false,
+                            },
+                        );
+                    }
+                    // Relate integral variables to other types
+                    // (&ty::Infer(ty::IntVar(a_id)), &ty::Infer(ty::IntVar(b_id))) => {}
+                    // (&ty::Infer(ty::IntVar(v_id)), &ty::Int(v)) => {}
+                    // (&ty::Int(v), &ty::Infer(ty::IntVar(v_id))) => {}
+                    // (&ty::Infer(ty::IntVar(v_id)), &ty::Uint(v)) => {}
+                    // (&ty::Uint(v), &ty::Infer(ty::IntVar(v_id))) => {}
+                    // (&ty::Infer(ty::FloatVar(a_id)), &ty::Infer(ty::FloatVar(b_id))) => {}
+                    // (&ty::Infer(ty::FloatVar(v_id)), &ty::Float(v)) => {}
+                    // (&ty::Float(v), &ty::Infer(ty::FloatVar(v_id))) => {}
+        
+                    // // We don't expect `TyVar` or `Fresh*` vars at this point with lazy norm.
+                    // (ty::Alias(..), ty::Infer(ty::TyVar(_))) | (ty::Infer(ty::TyVar(_)), ty::Alias(..))
+                    //     if infcx.infcx.next_trait_solver() => {}
+                    // (_, ty::Infer(ty::FreshTy(_) | ty::FreshIntTy(_) | ty::FreshFloatTy(_)))
+                    // | (ty::Infer(ty::FreshTy(_) | ty::FreshIntTy(_) | ty::FreshFloatTy(_)), _)
+                    //     if infcx.infcx.next_trait_solver() => {}
+        
+                    // (_, ty::Alias(..)) | (ty::Alias(..), _) if infcx.infcx.next_trait_solver() => {}
+        
+                    // // All other cases of inference are errors
+                    // (&ty::Infer(_), _) | (_, &ty::Infer(_)) => {}
+        
+                    // // During coherence, opaque types should be treated as *possibly*
+                    // // equal to any other type (except for possibly itself). This is an
+                    // // extremely heavy hammer, but can be relaxed in a fowards-compatible
+                    // // way later.
+                    // (&ty::Alias(ty::Opaque, _), _) | (_, &ty::Alias(ty::Opaque, _)) if infcx.infcx.intercrate => {}
+        
+                    _ => {
+                        // ty::relate::structurally_relate_tys(relation, a, b);
+                        println!("! structurally_relate_tys");
+                        
+                        
+                    }
+                }
+                
+            }
+        }
+    }
+}
+
+// use rustc_infer::infer::nll_relate::TypeRelating;
+// use rustc_infer::infer::nll_relate::NllTypeRelatingDelegate;
 fn check_rvalue<'tcx>(
-    tcx: TyCtxt<'tcx>, 
+    infcx: &BorrowckInferCtxt<'tcx>,
     body: &Body<'tcx>, 
     rvalue: &Rvalue<'tcx>, 
     location: Location,
     borrowck_context: &mut BorrowCheckContext<'_, 'tcx>,
+    param_env: ty::ParamEnv<'tcx>,
 ) {
         
     let span = body.source_info(location).span;
@@ -425,10 +622,20 @@ fn check_rvalue<'tcx>(
     match rvalue {
         Rvalue::Aggregate(ak, ops) => {
             println!("Aggregate");
-            // for op in ops {
-            //     self.check_operand(op, location);
-            // }
-            // self.check_aggregate_rvalue(body, rvalue, ak, ops, location)
+            if **ak != AggregateKind::Tuple {
+                for (i, operand) in ops.iter_enumerated() {
+                    println!("i: {:?}, operand: {:?}", i, operand);
+                    let field_ty = aggregate_field_ty(infcx, ak, i, location, param_env, body);
+
+                    let operand_ty = operand.ty(body, infcx.infcx.tcx);
+                    let operand_ty = param_env.and(normalize::Normalize { value: operand_ty });
+                    let result: Result<_, ErrorGuaranteed> = operand_ty.fully_perform(&infcx.infcx, Locations::Single(location).span(body));
+                    let TypeOpOutput { output: operand_ty, .. } = result.unwrap();
+                    sub_types(operand_ty, field_ty, Locations::Single(location), ConstraintCategory::Boring, infcx, borrowck_context, body);
+
+                }
+
+            }
         }
 
         Rvalue::Repeat(operand, len) => {
@@ -879,7 +1086,7 @@ fn check_rvalue<'tcx>(
 
         Rvalue::Ref(region, _borrow_kind, borrowed_place) => {
             println!("Ref");
-            add_reborrow_constraint(tcx, borrowck_context, body, location, *region, borrowed_place);
+            add_reborrow_constraint(infcx.infcx.tcx, borrowck_context, body, location, *region, borrowed_place);
             
         }
 
@@ -890,60 +1097,59 @@ fn check_rvalue<'tcx>(
             println!("BinaryOp");
             // self.check_operand(left, location);
             // self.check_operand(right, location);
-
-            // let ty_left = left.ty(body, tcx);
-            // match ty_left.kind() {
-            //     // Types with regions are comparable if they have a common super-type.
-            //     ty::RawPtr(_) | ty::FnPtr(_) => {
-            //         let ty_right = right.ty(body, tcx);
-            //         let common_ty = self.infcx.next_ty_var(TypeVariableOrigin {
-            //             kind: TypeVariableOriginKind::MiscVariable,
-            //             span: body.source_info(location).span,
-            //         });
-            //         self.sub_types(
-            //             ty_left,
-            //             common_ty,
-            //             location.to_locations(),
-            //             ConstraintCategory::Boring,
-            //         )
-            //         .unwrap_or_else(|err| {
-            //             bug!("Could not equate type variable with {:?}: {:?}", ty_left, err)
-            //         });
-            //         if let Err(terr) = self.sub_types(
-            //             ty_right,
-            //             common_ty,
-            //             location.to_locations(),
-            //             ConstraintCategory::Boring,
-            //         ) {
-            //             span_mirbug!(
-            //                 self,
-            //                 rvalue,
-            //                 "unexpected comparison types {:?} and {:?} yields {:?}",
-            //                 ty_left,
-            //                 ty_right,
-            //                 terr
-            //             )
-            //         }
-            //     }
-            //     // For types with no regions we can just check that the
-            //     // both operands have the same type.
-            //     ty::Int(_) | ty::Uint(_) | ty::Bool | ty::Char | ty::Float(_)
-            //         if ty_left == right.ty(body, tcx) => {}
-            //     // Other types are compared by trait methods, not by
-            //     // `Rvalue::BinaryOp`.
-            //     _ => span_mirbug!(
-            //         self,
-            //         rvalue,
-            //         "unexpected comparison types {:?} and {:?}",
-            //         ty_left,
-            //         right.ty(body, tcx)
-            //     ),
-            // }
+            let tcx = infcx.infcx.tcx;
+            let ty_left = left.ty(body, tcx);
+            match ty_left.kind() {
+                // Types with regions are comparable if they have a common super-type.
+                ty::RawPtr(_) | ty::FnPtr(_) => {
+                    let ty_right = right.ty(body, tcx);
+                    let common_ty = infcx.infcx.next_ty_var(TypeVariableOrigin {
+                        kind: TypeVariableOriginKind::MiscVariable,
+                        span: body.source_info(location).span,
+                    });
+                    println!("common_ty: {:?}, ty_left: {:?}, ty_right: {:?}", common_ty, ty_left, ty_right);
+                    // self.sub_types(
+                    //     ty_left,
+                    //     common_ty,
+                    //     location.to_locations(),
+                    //     ConstraintCategory::Boring,
+                    // )
+                    // .unwrap_or_else(|err| {
+                    //     bug!("Could not equate type variable with {:?}: {:?}", ty_left, err)
+                    // });
+                    // if let Err(terr) = self.sub_types(
+                    //     ty_right,
+                    //     common_ty,
+                    //     location.to_locations(),
+                    //     ConstraintCategory::Boring,
+                    // ) {
+                    //     span_mirbug!(
+                    //         self,
+                    //         rvalue,
+                    //         "unexpected comparison types {:?} and {:?} yields {:?}",
+                    //         ty_left,
+                    //         ty_right,
+                    //         terr
+                    //     )
+                    // }
+                }
+                // For types with no regions we can just check that the
+                // both operands have the same type.
+                // ty::Int(_) | ty::Uint(_) | ty::Bool | ty::Char | ty::Float(_)
+                //     if ty_left == right.ty(body, tcx) => {}
+                // Other types are compared by trait methods, not by
+                // `Rvalue::BinaryOp`.
+                _ => {}
+            }
         }
 
         Rvalue::Use(operand) | Rvalue::UnaryOp(_, operand) => {
             println!("Use/UnaryOp");
             // self.check_operand(operand, location);
+            if let Operand::Constant(constant) = operand {
+                println!("Constant: {:?}", constant);
+            }
+
         }
         Rvalue::CopyForDeref(place) => {
             println!("CopyForDeref");
@@ -988,7 +1194,7 @@ fn add_reborrow_constraint<'tcx>(
     // let BorrowCheckContext { borrow_set, location_table, all_facts, constraints, .. } =
     //     self.borrowck_context;
     let location_table = borrowck_context.location_table;
-    let constraints = &borrowck_context.constraints;
+    let mut constraints = &mut borrowck_context.constraints;
     let borrow_set = &borrowck_context.borrow_set;
     let loan_issued_at = &mut borrowck_context.loan_issued_at;
 
@@ -999,9 +1205,9 @@ fn add_reborrow_constraint<'tcx>(
     // example).
     // if let Some(all_facts) = all_facts {
     let _prof_timer = tcx.prof.generic_activity("polonius_fact_generation");
-    println!("add_reborrow_constraint");
+    println!("add_reborrow_constraint, location: {:?}", location);
     if let Some(borrow_index) = borrow_set.get_index_of(&location) {
-        println!("borrow_index: {:?}", borrow_index);
+        println!("borrow_index: {:?}, borrowed_place: {:?}", borrow_index, borrowed_place);
         let region_vid = borrow_region.as_var();
         let start_index = location_table.statements_before_block[location.block];
         let mid_index = LocationIndex::from_usize(start_index + location.statement_index * 2 + 1);
@@ -1042,81 +1248,85 @@ fn add_reborrow_constraint<'tcx>(
     //     ConstraintCategory::Boring
     // };
 
-    // for (base, elem) in borrowed_place.as_ref().iter_projections().rev() {
-    //     debug!("add_reborrow_constraint - iteration {:?}", elem);
+    for (base, elem) in borrowed_place.as_ref().iter_projections().rev() {
+        println!("add_reborrow_constraint - iteration {:?}", elem);
 
-    //     match elem {
-    //         ProjectionElem::Deref => {
-    //             let base_ty = base.ty(body, tcx).ty;
+        match elem {
+            ProjectionElem::Deref => {
+                let base_ty = base.ty(body, tcx).ty;
 
-    //             debug!("add_reborrow_constraint - base_ty = {:?}", base_ty);
-    //             match base_ty.kind() {
-    //                 ty::Ref(ref_region, _, mutbl) => {
-    //                     constraints.outlives_constraints.push(OutlivesConstraint {
-    //                         sup: ref_region.as_var(),
-    //                         sub: borrow_region.as_var(),
-    //                         locations: location.to_locations(),
-    //                         span: location.to_locations().span(body),
-    //                         category,
-    //                         variance_info: ty::VarianceDiagInfo::default(),
-    //                         from_closure: false,
-    //                     });
+                // println!("add_reborrow_constraint - base_ty = {:?}", base_ty);
+                match base_ty.kind() {
+                    ty::Ref(ref_region, _, mutbl) => {
+                        println!("add_reborrow_constraint - ref_region = {:?}, mutbl = {:?}", ref_region, mutbl);
+                        // let locations = rustc_borrowck::type_check::Locations::Single(location);
+                        let locations = Locations::Single(location);
+                        constraints.outlives_constraints.push(OutlivesConstraint {
+                            sup: ref_region.as_var(),
+                            sub: borrow_region.as_var(),
+                            locations: locations,
+                            span: locations.span(body),
+                            category:ConstraintCategory::Boring,
+                            variance_info: ty::VarianceDiagInfo::default(),
+                            from_closure: false,
+                        });
 
-    //                     match mutbl {
-    //                         hir::Mutability::Not => {
-    //                             // Immutable reference. We don't need the base
-    //                             // to be valid for the entire lifetime of
-    //                             // the borrow.
-    //                             break;
-    //                         }
-    //                         hir::Mutability::Mut => {
-    //                             // Mutable reference. We *do* need the base
-    //                             // to be valid, because after the base becomes
-    //                             // invalid, someone else can use our mutable deref.
+                        match mutbl {
+                            hir::Mutability::Not => {
+                                // Immutable reference. We don't need the base
+                                // to be valid for the entire lifetime of
+                                // the borrow.
+                                break;
+                            }
+                            hir::Mutability::Mut => {
+                                // Mutable reference. We *do* need the base
+                                // to be valid, because after the base becomes
+                                // invalid, someone else can use our mutable deref.
 
-    //                             // This is in order to make the following function
-    //                             // illegal:
-    //                             // ```
-    //                             // fn unsafe_deref<'a, 'b>(x: &'a &'b mut T) -> &'b mut T {
-    //                             //     &mut *x
-    //                             // }
-    //                             // ```
-    //                             //
-    //                             // As otherwise you could clone `&mut T` using the
-    //                             // following function:
-    //                             // ```
-    //                             // fn bad(x: &mut T) -> (&mut T, &mut T) {
-    //                             //     let my_clone = unsafe_deref(&'a x);
-    //                             //     ENDREGION 'a;
-    //                             //     (my_clone, x)
-    //                             // }
-    //                             // ```
-    //                         }
-    //                     }
-    //                 }
-    //                 ty::RawPtr(..) => {
-    //                     // deref of raw pointer, guaranteed to be valid
-    //                     break;
-    //                 }
-    //                 ty::Adt(def, _) if def.is_box() => {
-    //                     // deref of `Box`, need the base to be valid - propagate
-    //                 }
-    //                 _ => bug!("unexpected deref ty {:?} in {:?}", base_ty, borrowed_place),
-    //             }
-    //         }
-    //         ProjectionElem::Field(..)
-    //         | ProjectionElem::Downcast(..)
-    //         | ProjectionElem::OpaqueCast(..)
-    //         | ProjectionElem::Index(..)
-    //         | ProjectionElem::ConstantIndex { .. }
-    //         | ProjectionElem::Subslice { .. } => {
-    //             // other field access
-    //         }
-    //         ProjectionElem::Subtype(_) => {
-    //             bug!("ProjectionElem::Subtype shouldn't exist in borrowck")
-    //         }
-    //     }
-    // }
+                                // This is in order to make the following function
+                                // illegal:
+                                // ```
+                                // fn unsafe_deref<'a, 'b>(x: &'a &'b mut T) -> &'b mut T {
+                                //     &mut *x
+                                // }
+                                // ```
+                                //
+                                // As otherwise you could clone `&mut T` using the
+                                // following function:
+                                // ```
+                                // fn bad(x: &mut T) -> (&mut T, &mut T) {
+                                //     let my_clone = unsafe_deref(&'a x);
+                                //     ENDREGION 'a;
+                                //     (my_clone, x)
+                                // }
+                                // ```
+                            }
+                        }
+                    }
+                    ty::RawPtr(..) => {
+                        // deref of raw pointer, guaranteed to be valid
+                        break;
+                    }
+                    ty::Adt(def, _) if def.is_box() => {
+                        // deref of `Box`, need the base to be valid - propagate
+                    }
+                    _ => {} // bug!("unexpected deref ty {:?} in {:?}", base_ty, borrowed_place),
+                }
+            },
+            _ => {}
+            // ProjectionElem::Field(..)
+            // | ProjectionElem::Downcast(..)
+            // | ProjectionElem::OpaqueCast(..)
+            // | ProjectionElem::Index(..)
+            // | ProjectionElem::ConstantIndex { .. }
+            // | ProjectionElem::Subslice { .. } => {
+            //     // other field access
+            // }
+            // ProjectionElem::Subtype(_) => {
+            //     bug!("ProjectionElem::Subtype shouldn't exist in borrowck")
+            // }
+        }
+    }
 }
 
 
@@ -1757,6 +1967,7 @@ struct BorrowCheckContext<'a, 'tcx> {
 
 /// A collection of region constraints that must be satisfied for the
 /// program to be considered well-typed.
+#[derive(Debug)]
 pub(crate) struct MirTypeckRegionConstraints<'tcx> {
     /// Maps from a `ty::Placeholder` to the corresponding
     /// `PlaceholderIndex` bit that we will use for it.
@@ -3737,7 +3948,7 @@ pub(crate) struct MirTypeckRegionConstraints<'tcx> {
 //         Ok(output)
 //     }
 // }
-use rustc_borrowck::consumers::OutlivesConstraint;
+// use rustc_borrowck::consumers::OutlivesConstraint;
 use std::ops::Index;
 rustc_index::newtype_index! {
     #[debug_format = "OutlivesConstraintIndex({})"]
@@ -3954,4 +4165,100 @@ impl<'tcx> fmt::Display for BorrowData<'tcx> {
         };
         write!(w, "&{:?} {}{:?}", self.region, kind, self.borrowed_place)
     }
+}
+
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum Locations {
+    /// Indicates that a type constraint should always be true. This
+    /// is particularly important in the new borrowck analysis for
+    /// things like the type of the return slot. Consider this
+    /// example:
+    ///
+    /// ```compile_fail,E0515
+    /// fn foo<'a>(x: &'a u32) -> &'a u32 {
+    ///     let y = 22;
+    ///     return &y; // error
+    /// }
+    /// ```
+    ///
+    /// Here, we wind up with the signature from the return type being
+    /// something like `&'1 u32` where `'1` is a universal region. But
+    /// the type of the return slot `_0` is something like `&'2 u32`
+    /// where `'2` is an existential region variable. The type checker
+    /// requires that `&'2 u32 = &'1 u32` -- but at what point? In the
+    /// older NLL analysis, we required this only at the entry point
+    /// to the function. By the nature of the constraints, this wound
+    /// up propagating to all points reachable from start (because
+    /// `'1` -- as a universal region -- is live everywhere). In the
+    /// newer analysis, though, this doesn't work: `_0` is considered
+    /// dead at the start (it has no usable value) and hence this type
+    /// equality is basically a no-op. Then, later on, when we do `_0
+    /// = &'3 y`, that region `'3` never winds up related to the
+    /// universal region `'1` and hence no error occurs. Therefore, we
+    /// use Locations::All instead, which ensures that the `'1` and
+    /// `'2` are equal everything. We also use this for other
+    /// user-given type annotations; e.g., if the user wrote `let mut
+    /// x: &'static u32 = ...`, we would ensure that all values
+    /// assigned to `x` are of `'static` lifetime.
+    ///
+    /// The span points to the place the constraint arose. For example,
+    /// it points to the type in a user-given type annotation. If
+    /// there's no sensible span then it's DUMMY_SP.
+    All(Span),
+
+    /// An outlives constraint that only has to hold at a single location,
+    /// usually it represents a point where references flow from one spot to
+    /// another (e.g., `x = y`)
+    Single(Location),
+}
+
+impl Locations {
+    pub fn from_location(&self) -> Option<Location> {
+        match self {
+            Locations::All(_) => None,
+            Locations::Single(from_location) => Some(*from_location),
+        }
+    }
+
+    /// Gets a span representing the location.
+    pub fn span(&self, body: &Body<'_>) -> Span {
+        match self {
+            Locations::All(span) => *span,
+            Locations::Single(l) => body.source_info(*l).span,
+        }
+    }
+}
+
+use rustc_middle::ty::VarianceDiagInfo;
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct OutlivesConstraint<'tcx> {
+    // NB. The ordering here is not significant for correctness, but
+    // it is for convenience. Before we dump the constraints in the
+    // debugging logs, we sort them, and we'd like the "super region"
+    // to be first, etc. (In particular, span should remain last.)
+    /// The region SUP must outlive SUB...
+    pub sup: RegionVid,
+
+    /// Region that must be outlived.
+    pub sub: RegionVid,
+
+    /// Where did this constraint arise?
+    pub locations: Locations,
+
+    /// The `Span` associated with the creation of this constraint.
+    /// This should be used in preference to obtaining the span from
+    /// `locations`, since the `locations` may give a poor span
+    /// in some cases (e.g. converting a constraint from a promoted).
+    pub span: Span,
+
+    /// What caused this constraint?
+    pub category: ConstraintCategory<'tcx>,
+
+    /// Variance diagnostic information
+    pub variance_info: VarianceDiagInfo<'tcx>,
+
+    /// If this constraint is promoted from closure requirements.
+    pub from_closure: bool,
 }

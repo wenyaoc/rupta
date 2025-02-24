@@ -151,46 +151,49 @@ impl<'pta, 'tcx, 'compilation> FuncPAGBuilder<'pta, 'tcx, 'compilation> {
         }
     }
 
+    
     pub fn build_loans(&mut self) {
+        use crate::util::borrowck_util::my_mir_borrowck;
         if self.acx.analysis_options.compute_loans {
             println!("Building loans for {:?}, {:?}", self.func_id, self.def_id());
             let def_id = self.def_id();
             if let Some(local_def_id) = def_id.as_local() {
+                my_mir_borrowck(self.acx.tcx, def_id);
                 // Figure out what primary body this item has.
                 // https://doc.rust-lang.org/stable/nightly-rustc/src/rustc_hir_typeck/lib.rs.html#2-509
-                let hir_id = self.acx.tcx.local_def_id_to_hir_id(local_def_id);
-                let node = self.acx.tcx.hir_node(hir_id);
-                if let Some(_) = node.body_id() {
-                    // Calculate the function's loans
-                    let loan_builder = FuncLoanBuilder::new(self.acx.tcx, def_id);
-                    let loans = loan_builder.compute_loans();
-                    let mut func_loans = FuncLoanMap::new();
-                    // println!("Loans: {:?}", loans);
-                    for (func_places, loans) in loans {
-                        let func_path = self.get_path_for_place(&func_places);
-                        // println!("Func place: {:?}, local: {:?}, ptojection: {:?}", func_places, func_places.local, func_places.projection);
-                        // println!("      Func path: {:?}", func_path);
-                        let (mutability, loan_set) = loans;
-                        let mut path_loan_set = PathLoanMap::new();
-                        for (loan_place, loan_mutability) in loan_set {
-                            let loan_path = self.get_path_for_place(&loan_place);
-                            // println!("Func place: {:?}, path: {:?}, ty: {:?}", loan_place, loan_path, ty);
-                            // if let Some(loan_path) = self.path_cache.get(&loan_place) {
-                            //     path_loan_set.insert(loan_path.clone(), loan_mutability);
-                            // }
-                            path_loan_set.insert(loan_path.clone(), loan_mutability);
-                        }
-                        // func_loans.insert(func_path.clone(), (mutability, path_loan_set));
-                        func_loans.insert(func_path.clone(), (mutability, path_loan_set));
+                // let hir_id = self.acx.tcx.local_def_id_to_hir_id(local_def_id);
+                // let node = self.acx.tcx.hir_node(hir_id);
+                // if let Some(_) = node.body_id() {
+                //     // Calculate the function's loans
+                //     let loan_builder = FuncLoanBuilder::new(self.acx.tcx, def_id);
+                //     let loans = loan_builder.compute_loans();
+                //     let mut func_loans = FuncLoanMap::new();
+                //     // println!("Loans: {:?}", loans);
+                //     for (func_places, loans) in loans {
+                //         let func_path = self.get_path_for_place(&func_places);
+                //         // println!("Func place: {:?}, local: {:?}, ptojection: {:?}", func_places, func_places.local, func_places.projection);
+                //         // println!("      Func path: {:?}", func_path);
+                //         let (mutability, loan_set) = loans;
+                //         let mut path_loan_set = PathLoanMap::new();
+                //         for (loan_place, loan_mutability) in loan_set {
+                //             let loan_path = self.get_path_for_place(&loan_place);
+                //             // println!("Func place: {:?}, path: {:?}, ty: {:?}", loan_place, loan_path, ty);
+                //             // if let Some(loan_path) = self.path_cache.get(&loan_place) {
+                //             //     path_loan_set.insert(loan_path.clone(), loan_mutability);
+                //             // }
+                //             path_loan_set.insert(loan_path.clone(), loan_mutability);
+                //         }
+                //         // func_loans.insert(func_path.clone(), (mutability, path_loan_set));
+                //         func_loans.insert(func_path.clone(), (mutability, path_loan_set));
                         
                         
-                    }
-                    // println!("Func loans: {:?}", func_loans);
-                    self.fpag.func_loans = func_loans;
-                }              
+                //     }
+                //     // println!("Func loans: {:?}", func_loans);
+                //     self.fpag.func_loans = func_loans;
+                // }              
             } 
             else {
-                use crate::util::borrowck_util::my_mir_borrowck;
+                
                 my_mir_borrowck(self.acx.tcx, def_id);
             }
         }

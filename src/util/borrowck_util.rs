@@ -180,6 +180,7 @@ pub fn my_mir_borrowck(tcx: TyCtxt<'_>, def_id: DefId) {
         // return tcx.arena.alloc(Bo
     }
     let input_promoted: &IndexSlice<_, _> = &promoted.borrow();
+    // println!("input_body: {:?}, input_promoted: {:?}", input_body, input_promoted);
     my_do_mir_borrowck(tcx, input_body, input_promoted, None);
 
     // tcx.arena.alloc(borrowck_result)
@@ -244,7 +245,7 @@ fn my_do_mir_borrowck<'tcx>(
     // println!("hir: {:?}", tcx.hir().krate(def_id.krate));
     renumber::renumber_mir(&infcx, &mut body_owned, &mut promoted);
     dump_mir(infcx.infcx.tcx, false, "renumber", &0, &mut body_owned, |_, _| Ok(()));
-    
+
     // let is_polonius_legacy_enabled = infcx.infcx.tcx.sess.opts.unstable_opts.polonius.is_legacy_enabled();
     // let polonius_input = consumer_options.map(|_| true).unwrap_or_default()
     //     || is_polonius_legacy_enabled;

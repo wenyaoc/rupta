@@ -99,7 +99,7 @@ impl<'tcx> FuncLoanBuilder<'tcx> {
                 .iter()
                 .cloned()
                 .collect::<Vec<_>>();
-        // println!("subset_base: {:?}", subset_base);
+        println!("subset_base: {:?}", subset_base);
         
     
         let all_pointers = body_with_facts.body
